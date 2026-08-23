@@ -217,7 +217,7 @@ widget behaviour, plus a simulated AR730 that speaks VRP. The whole application 
 and its buttons pressed in the order a member of staff would press them.
 
 ```bash
-python harness/run_test.py        # 195 checks — full application flow
+python harness/run_test.py        # 196 checks — full application flow
 python harness/run_demo_test.py   #  14 checks — demo mode
 ```
 

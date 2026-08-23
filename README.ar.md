@@ -85,7 +85,7 @@ mac-access-profile name m_wl
 ## الاختبارات
 
 ```bash
-python harness/run_test.py        # ١٩٥ فحصاً
+python harness/run_test.py        # ١٩٦ فحصاً
 python harness/run_demo_test.py   #  ١٤ فحصاً
 ```
 

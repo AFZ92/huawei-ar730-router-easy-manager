@@ -27,7 +27,7 @@ First public release.
 - Bilingual interface, English and Arabic, with right-to-left layout mirroring.
 - Offline router simulator (`--demo`) enforcing the real device's constraints.
 - Configurable SSH port; empty means 22.
-- Headless test harness with 209 checks across two suites, requiring no display or hardware.
+- Headless test harness with 210 checks across two suites, requiring no display or hardware.
 
 ### Security
 

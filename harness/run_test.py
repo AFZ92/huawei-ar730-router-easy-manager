@@ -341,10 +341,15 @@ def _all(w, out=None):
     return out
 
 
+# نطابق نص التلميح بعينه لا مجرد وجود "22": المسارات المؤقتة تحمل
+# أرقاماً عشوائية وقد تحوي "22" فيصير الفحص متذبذباً
 lbl_port = [w for w in _all(app)
-            if isinstance(w, tkinter.ttk.Label) and "22" in str(w.cget("text") or "")]
+            if isinstance(w, tkinter.ttk.Label)
+            and str(w.cget("text") or "") == app.T["port_hint"]]
 check("التسمية تشرح أن الفراغ يعني 22", len(lbl_port) == 1,
       str([w.cget("text") for w in lbl_port]))
+check("التلميح يذكر المنفذ الافتراضي", "22" in app.T["port_hint"],
+      app.T["port_hint"])
 
 # منفذ غير رقمي يُرفض قبل أن يصل إلى الراوتر
 messagebox.reset()
