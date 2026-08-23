@@ -1,0 +1,43 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  harness:
+    name: harness (py${{ matrix.python }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.9", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # The harness substitutes its own tkinter, so no display or Tk
+      # installation is needed on any runner.
+      - name: Full application flow
+        run: python harness/run_test.py
+
+      - name: Demo mode
+        run: python harness/run_demo_test.py
+
+  compile:
+    name: byte-compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Verify the application compiles on the minimum supported version
+        run: python -m compileall -q ar730_manager.py harness

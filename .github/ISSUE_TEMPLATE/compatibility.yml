@@ -1,0 +1,25 @@
+name: Compatibility report
+description: You ran this against a router other than the AR730
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports are genuinely useful — please file one **even if everything worked**.
+  - type: input
+    id: model
+    attributes:
+      label: Router model and VRP version
+    validations:
+      required: true
+  - type: textarea
+    id: worked
+    attributes:
+      label: What worked
+    validations:
+      required: true
+  - type: textarea
+    id: failed
+    attributes:
+      label: What did not work
+      description: Include the Command Log excerpt, redacted.

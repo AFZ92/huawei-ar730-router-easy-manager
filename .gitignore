@@ -1,0 +1,38 @@
+# ---- Runtime data written next to the app -----------------------------------
+# These hold live network data: device owner names, the shared MAC password,
+# and a full transcript of the router session. They must never be committed.
+ar730_settings.json
+ar730_devices.json
+ar730_session.log
+demo_settings.json
+demo_devices.json
+demo_session.log
+
+# ---- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.spec
+
+# ---- Environments ------------------------------------------------------------
+.venv/
+venv/
+env/
+.python-version
+
+# ---- Tooling / OS ------------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db
+
+# ---- Editors -----------------------------------------------------------------
+.vscode/
+.idea/
+*.swp

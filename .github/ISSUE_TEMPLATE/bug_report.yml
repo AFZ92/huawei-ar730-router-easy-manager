@@ -1,0 +1,38 @@
+name: Bug report
+description: Something behaves incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you post:** redact any real MAC addresses, hostnames, serial numbers and
+        IP ranges from logs you paste here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Command Log excerpt
+      description: The relevant part of the Command Log tab, redacted.
+      render: text
+  - type: input
+    id: router
+    attributes:
+      label: Router model and VRP version
+      placeholder: Huawei NetEngine AR730, VRP V300R021C10
+  - type: input
+    id: env
+    attributes:
+      label: OS and Python version
+      placeholder: Windows 11, Python 3.12
+  - type: checkboxes
+    id: demo
+    attributes:
+      label: Does it also happen in demo mode?
+      options:
+        - label: I tried `python ar730_manager.py --demo`

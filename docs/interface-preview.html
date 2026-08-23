@@ -1,0 +1,147 @@
+<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8">
+<title>معاينة واجهة AR730 Access Manager</title>
+<style>
+:root{--bg:#eceff1;--card:#fff;--ink:#16232b;--mut:#6b7c86;--line:#d3dbe0;--accent:#1f6f8b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:14px/1.6 "Segoe UI",system-ui,"Noto Naskh Arabic",sans-serif;padding:24px}
+.note{max-width:1100px;margin:0 auto 16px;background:#fff6e5;border:1px solid #e8cf9a;
+ border-right:4px solid #c98a12;border-radius:8px;padding:12px 16px;font-size:13px}
+.win{max-width:1100px;margin:0 auto;background:var(--card);border:1px solid var(--line);
+ border-radius:10px;overflow:hidden;box-shadow:0 8px 30px rgba(20,40,55,.13)}
+.titlebar{background:#243b47;color:#eaf2f5;padding:9px 14px;font-size:13px;
+ display:flex;justify-content:space-between;align-items:center}
+.dots{display:flex;gap:6px}.dots i{width:11px;height:11px;border-radius:50%;background:#5d7784;display:block}
+.top{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);
+ flex-wrap:wrap;background:#f6f8f9}
+.top label{color:var(--mut);font-size:13px}
+.top input{border:1px solid var(--line);border-radius:5px;padding:5px 9px;font:inherit;font-size:13px}
+.state{margin-inline-start:auto;color:#16704a;font-weight:600;font-size:13px}
+.tabs{display:flex;gap:2px;padding:10px 12px 0;background:#f6f8f9;border-bottom:1px solid var(--line);
+ flex-wrap:wrap}
+.tab{border:1px solid var(--line);border-bottom:none;background:#e6ebee;color:#4a5c66;
+ padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font:inherit;font-size:13px}
+.tab.on{background:#fff;color:var(--ink);font-weight:600;position:relative;top:1px}
+.panel{display:none;padding:14px}.panel.on{display:block}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+button{font:inherit;font-size:13px;padding:6px 14px;border:1px solid var(--line);
+ background:#f2f5f6;border-radius:6px;cursor:pointer}
+button.danger{color:#a3301c;border-color:#e3bdb5;background:#fdf3f1}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#eef2f4;text-align:right;padding:9px 10px;border-bottom:2px solid var(--line);font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid #eef1f3}
+tr.revoked td{color:#8a8a8a;text-decoration:line-through}
+tr.orphan td{color:#8a5600}
+tr.missing td{color:#a3301c}
+.log{background:#0f1a20;color:#dae8ec;padding:14px;border-radius:8px;overflow:auto;
+ max-height:420px;font:12px/1.55 "Cascadia Mono",Consolas,monospace;direction:ltr;text-align:left}
+.form{display:grid;grid-template-columns:220px 1fr;gap:10px 14px;max-width:640px;align-items:center}
+.form label{color:var(--mut)}
+.form input{border:1px solid var(--line);border-radius:5px;padding:6px 10px;font:inherit;font-size:13px}
+.form .bar{grid-column:1/-1;margin-top:8px}
+.status{border-top:1px solid var(--line);background:#f6f8f9;padding:8px 14px;
+ color:var(--mut);font-size:12.5px}
+</style>
+<div class="note"><b>هذه معاينة لشكل الواجهة، وليست لقطة شاشة.</b>
+البيانات والعناوين والأعمدة مقروءة من البرنامج نفسه في وضع التجربة، فهي تطابق ما ستراه.
+الأزرار هنا لا تعمل عدا التنقل بين التبويبات.</div>
+<div class="win">
+ <div class="titlebar"><span>أداة إدارة الوصول — AR730  v1.0</span><span class="dots"><i></i><i></i><i></i></span></div>
+ <div class="top">
+   <label>عنوان الراوتر</label><input value="10.0.1.1" size="10">
+   <label>اسم المستخدم</label><input value="admin" size="8">
+   <label>كلمة المرور</label><input type="password" value="demodemo" size="10">
+   <button>قطع الاتصال</button>
+   <span class="state">● متصل &nbsp;AR730</span>
+ </div>
+ <div class="tabs"><button class='tab on' data-i='0'>سجل الأوامر</button><button class='tab' data-i='1'>الإعدادات</button><button class='tab' data-i='2'>مجموعات الصلاحيات</button><button class='tab' data-i='3'>المتصلون الآن</button><button class='tab' data-i='4'>حسابات البوابة</button><button class='tab' data-i='5'>الأجهزة الموثوقة</button></div>
+ <div class='panel on' data-i='0'><div class='bar'><button class=''>إضافة جهاز</button><button class=''>تغيير المجموعة</button><button class='danger'>سحب الثقة</button><button class=''>تصدير CSV</button><button class=''>تحديث</button></div><table><thead><tr><th>عنوان الماك</th><th>الاسم الوصفي</th><th>المجموعة</th><th>الحالة</th><th>أُضيف</th><th>ملاحظة</th></tr></thead><tbody><tr class=''><td>00:00:5E:00:53:02</td><td>موبايل المدير</td><td>grp_managers</td><td>فعّال</td><td>2026-08-23 13:47</td><td>مدير</td></tr><tr class=''><td>00:00:5E:00:53:03</td><td>AP673 - الطابق الأول</td><td>grp_infra</td><td>فعّال</td><td>2026-08-23 13:47</td><td>نقطة وصول</td></tr><tr class='revoked'><td>00:11:22:44:88:AA</td><td>لابتوب موظف سابق</td><td>grp_staff</td><td>ملغى</td><td>2026-08-23 13:47</td><td>انتهى عقده</td></tr></tbody></table></div><div class='panel' data-i='1'><div class='bar'><button class=''>إضافة حساب</button><button class=''>تغيير كلمة المرور</button><button class=''>تغيير المجموعة</button><button class='danger'>حذف الحساب</button><button class=''>تصدير CSV</button><button class=''>تحديث</button></div><table><thead><tr><th>اسم الحساب</th><th>الاسم الوصفي</th><th>المجموعة</th><th>الحالة</th><th>أُضيف</th><th>ملاحظة</th></tr></thead><tbody><tr class=''><td>sara</td><td>محاسبة — الطابق الأول</td><td>grp_staff</td><td>فعّال</td><td>2026-08-23 13:47</td><td>دوام جزئي</td></tr></tbody></table></div><div class='panel' data-i='2'><div class='bar'><button class=''>وثّق هذا الجهاز</button><button class='danger'>فصل المتصل</button><button class=''>تحديث</button></div><table><thead><tr><th>الرقم</th><th>اسم الحساب</th><th>عنوان IP</th><th>عنوان الماك</th><th>الحالة</th><th>الاسم الوصفي</th></tr></thead><tbody><tr class='ok'><td>1032</td><td>00005e005302</td><td>10.0.20.166</td><td>0000-5e00-5302</td><td>Success</td><td>موبايل المدير</td></tr><tr class='pre'><td>1027</td><td>00005e005301</td><td>10.0.21.207</td><td>0000-5e00-5301</td><td>Pre-authen</td><td></td></tr><tr class='ok'><td>1035</td><td>sara</td><td>10.0.20.88</td><td>3e4b-91aa-02d1</td><td>Success</td><td>محاسبة — الطابق الأول</td></tr></tbody></table></div><div class='panel' data-i='3'><div class='bar'><button class=''>تحديث</button></div><table><thead><tr><th>المجموعة</th><th>القائمة</th><th>الأعضاء</th></tr></thead><tbody><tr><td>grp_infra</td><td>3030</td><td>1</td></tr><tr><td>grp_managers</td><td>3010</td><td>1</td></tr><tr><td>grp_staff</td><td>3020</td><td>1</td></tr></tbody></table></div><div class='panel' data-i='4'><div class='form'>
+        <label>عنوان الراوتر</label><input value="10.0.1.1">
+        <label>اسم المستخدم</label><input value="admin">
+        <label>كلمة سر حسابات الماك المشتركة</label><input value="CHANGE-ME-SHARED-MAC-PASSWORD">
+        <label>المجموعة الافتراضية للأجهزة</label><input value="grp_staff">
+        <label>لغة الواجهة</label><input value="عربي / English">
+        <div class='bar'><button>حفظ الإعدادات</button></div></div></div><div class='panel' data-i='5'><pre class='log'>user admin service-type http ssh terminal
+ local-user admin privilege level 15
+ local-user sara password cipher %^%#demo
+ local-user sara service-type web
+ local-user sara user-group grp_staff
+#
+&lt;AR730-DEMO&gt;
+&gt;&gt;&gt; display user-group
+  ------------------------------------------------
+  Index  Group-name                       Priority
+  ------------------------------------------------
+  0      grp_infra                        0
+  1      grp_managers                     0
+  2      grp_staff                        0
+  ------------------------------------------------
+&lt;AR730-DEMO&gt;
+&gt;&gt;&gt; display current-configuration
+#
+sysname AR730-DEMO
+#
+user-group grp_infra
+ acl-id 3030
+#
+user-group grp_managers
+ acl-id 3010
+#
+user-group grp_staff
+ acl-id 3020
+#
+acl number 3020
+ rule 5 permit ip
+#
+#
+aaa
+ authentication-scheme default
+ domain default
+ domain portalusers
+ local-user 00005e005302 password cipher %^%#demo
+ local-user 00005e005302 service-type 8021x
+ local-user 00005e005302 user-group grp_managers
+ local-user 00005e005303 password cipher %^%#demo
+ local-user 00005e005303 service-type 8021x
+ local-user 00005e005303 user-group grp_infra
+ local-user admin password cipher %^%#demo
+ local-user admin service-type http ssh terminal
+ local-user admin privilege level 15
+ local-user sara password cipher %^%#demo
+ local-user sara service-type web
+ local-user sara user-group grp_staff
+#
+&lt;AR730-DEMO&gt;
+&gt;&gt;&gt; display access-user
+  ------------------------------------------------------------------------------
+  UserID Username                IP address       MAC            Status
+  ------------------------------------------------------------------------------
+  1032   00005e005302            10.0.20.166      0000-5e00-5302 Success
+  1027   00005e005301            10.0.21.207      0000-5e00-5301 Pre-authen
+  1035   sara                    10.0.20.88       3e4b-91aa-02d1 Success
+  ------------------------------------------------------------------------------
+  Total: 3, printed: 3
+&lt;AR730-DEMO&gt;
+&gt;&gt;&gt; display access-user
+  ------------------------------------------------------------------------------
+  UserID Username                IP address       MAC            Status
+  ------------------------------------------------------------------------------
+  1032   00005e005302            10.0.20.166      0000-5e00-5302 Success
+  1027   00005e005301            10.0.21.207      0000-5e00-5301 Pre-authen
+  1035   sara                    10.0.20.88       3e4b-91aa-02d1 Success
+  ------------------------------------------------------------------------------
+  Total: 3, printed: 3
+&lt;AR730-DEMO&gt;</pre></div>
+ <div class="status">تمت الإضافة والتحقق منها على الراوتر.</div>
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on')});
+    document.querySelectorAll('.panel').forEach(function(x){x.classList.remove('on')});
+    b.classList.add('on');
+    var p=document.querySelector(".panel[data-i='"+b.dataset.i+"']");
+    if(p)p.classList.add('on');
+  };
+});
+</script></html>
