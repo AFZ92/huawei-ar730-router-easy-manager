@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AR730 Access Manager
+Huawei AR730 Router Easy Manager
 ====================
 أداة إدارة التحكم بالوصول على Huawei NetEngine AR730.
 
@@ -50,7 +50,7 @@ except ImportError:
 # الإعدادات الافتراضية — تُحفظ في ar730_settings.json بجانب البرنامج
 # ----------------------------------------------------------------------------
 
-APP_NAME = "AR730 Access Manager"
+APP_NAME = "Huawei AR730 Router Easy Manager"
 APP_VERSION = "1.0"
 VENDOR = "AFZ Systems"
 DEFAULT_SSH_PORT = 22
@@ -221,7 +221,7 @@ TXT = {
         "lang_note": "تغيير اللغة يحتاج إعادة تشغيل البرنامج",
     },
     "en": {
-        "title": "AR730 Access Manager",
+        "title": "Huawei AR730 Router Easy Manager",
         "connect": "Connect",
         "disconnect": "Disconnect",
         "host": "Router IP",

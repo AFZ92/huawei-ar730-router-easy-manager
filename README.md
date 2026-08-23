@@ -1,10 +1,10 @@
-# AR730 Access Manager
+# Huawei AR730 Router Easy Manager
 
 **A desktop GUI for managing network access on Huawei NetEngine AR730 routers — MAC whitelisting, captive-portal accounts, and live sessions — without typing a single VRP command.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://github.com/AFZ92/ar730-access-manager/actions/workflows/tests.yml/badge.svg)](https://github.com/AFZ92/ar730-access-manager/actions/workflows/tests.yml)
+[![Tests](https://github.com/AFZ92/huawei-ar730-router-easy-manager/actions/workflows/tests.yml/badge.svg)](https://github.com/AFZ92/huawei-ar730-router-easy-manager/actions/workflows/tests.yml)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#installation)
 [![Offline demo](https://img.shields.io/badge/demo-no%20router%20needed-green.svg)](#try-it-without-a-router)
 
@@ -97,8 +97,8 @@ This is where you train a new staff member.
 Requires **Python 3.9 or newer** with Tkinter.
 
 ```bash
-git clone https://github.com/AFZ92/ar730-access-manager.git
-cd ar730-access-manager
+git clone https://github.com/AFZ92/huawei-ar730-router-easy-manager.git
+cd huawei-ar730-router-easy-manager
 pip install -r requirements.txt
 python ar730_manager.py
 ```
@@ -267,7 +267,7 @@ file that needs no Python installation.
 | **Dependencies** | `paramiko` (runtime only — demo mode and the tests need nothing) |
 
 Running it against another AR-series model? Please
-[open an issue](https://github.com/AFZ92/ar730-access-manager/issues) and tell us what
+[open an issue](https://github.com/AFZ92/huawei-ar730-router-easy-manager/issues) and tell us what
 worked — compatibility reports are genuinely useful.
 
 ## Contributing

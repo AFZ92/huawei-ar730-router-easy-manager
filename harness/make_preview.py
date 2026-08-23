@@ -94,7 +94,7 @@ for i, name in enumerate(TABS):
         " on" if i == 0 else "", i, body)
 
 doc = """<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8">
-<title>معاينة واجهة AR730 Access Manager</title>
+<title>معاينة واجهة Huawei AR730 Router Easy Manager</title>
 <style>
 :root{--bg:#eceff1;--card:#fff;--ink:#16232b;--mut:#6b7c86;--line:#d3dbe0;--accent:#1f6f8b}
 *{box-sizing:border-box}

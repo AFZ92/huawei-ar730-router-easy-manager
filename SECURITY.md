@@ -5,7 +5,7 @@
 Please **do not open a public issue** for a security vulnerability.
 
 Report it privately through
-[GitHub Security Advisories](https://github.com/AFZ92/ar730-access-manager/security/advisories/new),
+[GitHub Security Advisories](https://github.com/AFZ92/huawei-ar730-router-easy-manager/security/advisories/new),
 or by email to **amjadzarour@gmail.com**.
 
 Please include a description, reproduction steps, and the impact you believe it has. You can

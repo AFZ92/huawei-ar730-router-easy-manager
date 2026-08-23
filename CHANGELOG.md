@@ -34,4 +34,4 @@ First public release.
 - The SSH password is never written to disk.
 - Runtime data files are excluded from version control.
 
-[1.0.0]: https://github.com/AFZ92/ar730-access-manager/releases/tag/v1.0.0
+[1.0.0]: https://github.com/AFZ92/huawei-ar730-router-easy-manager/releases/tag/v1.0.0

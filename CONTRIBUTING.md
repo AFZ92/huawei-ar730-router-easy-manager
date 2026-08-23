@@ -6,8 +6,8 @@ stay readable by whoever inherits it — please keep that in mind when proposing
 ## Getting set up
 
 ```bash
-git clone https://github.com/AFZ92/ar730-access-manager.git
-cd ar730-access-manager
+git clone https://github.com/AFZ92/huawei-ar730-router-easy-manager.git
+cd huawei-ar730-router-easy-manager
 pip install -r requirements.txt
 python ar730_manager.py --demo
 ```

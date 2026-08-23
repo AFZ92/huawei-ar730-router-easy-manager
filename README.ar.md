@@ -1,4 +1,4 @@
-# AR730 Access Manager
+# Huawei AR730 Router Easy Manager
 
 **أداة سطح مكتب بواجهة رسومية لإدارة التحكم بالوصول على راوتر Huawei NetEngine AR730 — عبر SSH، دون معرفة أي أمر من أوامر VRP.**
 
@@ -43,8 +43,8 @@ python ar730_manager.py --demo
 يحتاج **Python 3.9 أو أحدث** مع Tkinter.
 
 ```bash
-git clone https://github.com/AFZ92/ar730-access-manager.git
-cd ar730-access-manager
+git clone https://github.com/AFZ92/huawei-ar730-router-easy-manager.git
+cd huawei-ar730-router-easy-manager
 pip install -r requirements.txt
 python ar730_manager.py
 ```
