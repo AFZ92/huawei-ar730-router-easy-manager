@@ -7,6 +7,14 @@
 """
 import os, sys, shutil, tempfile
 
+# مخرجات هذه المجموعات عربية، وكونسول ويندوز يفتح بترميز قديم (cp1252)
+# لا يسعها فتنفجر print قبل أن يبدأ أي فحص. نفرض UTF-8 في كل بيئة.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:          # بايثون قديم أو مخرَج لا يدعم إعادة الضبط
+    pass
+
 WORK = tempfile.mkdtemp(prefix="ar730test_")
 APPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 shutil.copy(os.path.join(APPDIR, "ar730_manager.py"), WORK)
