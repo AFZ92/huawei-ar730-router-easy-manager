@@ -11,6 +11,7 @@
     display access-user / cut access-user
 """
 import re
+import zlib
 
 
 class AuthenticationException(Exception): pass
@@ -29,12 +30,22 @@ class FakeAR730(object):
         self.save_count = 0
         self.cut_log = []
         self.history = []
+        self.profiles = {}          # mac-access-profile -> كلمة السر (نص واضح للفحص)
+        self.profile = None
+        self.reject_profile_pw = False     # لمحاكاة رفض الراوتر لكلمة سر الملف
+        self.reject_pw_for = set()         # حسابات يرفض الراوتر تحديث كلمة سرها
+        self.wan = None                    # يُنشأ عند أول أمر خطوط (يحتاج ar730_manager)
+        self.mgmt = None                   # أجهزة الإدارة، مثل wan
+        self.sub = ""                      # اسم عرض interface أو acl
         self._seed()
 
     def _seed(self):
         self.users["admin"] = {"types": {"ssh", "http", "terminal"}, "group": None,
                                "pw": True, "priv": 15}
-        self.users["00005e005302"] = {"types": {"8021x"}, "group": "grp_managers", "pw": True}
+        self.users["00005e005302"] = {"types": {"8021x"}, "group": "grp_managers", "pw": True,
+                                      "pwval": "Old-Shared-1", "state": "A"}
+        self.profiles["m_wl"] = "Old-Shared-1"
+        self.profiles["mac_access_profile"] = None
         self.online = [
             {"id": "1032", "user": "00005e005302", "ip": "10.0.20.166",
              "mac": "0000-5e00-5302", "status": "Success"},
@@ -48,6 +59,10 @@ class FakeAR730(object):
             return "<%s>" % self.hostname
         if self.view == "system":
             return "[%s]" % self.hostname
+        if self.view == "macprof":
+            return "[%s-mac-access-profile-%s]" % (self.hostname, self.profile)
+        if self.view == "sub":
+            return "[%s-%s]" % (self.hostname, self.sub)
         return "[%s-aaa]" % self.hostname
 
     # -- تنفيذ أمر ------------------------------------------------------------
@@ -64,13 +79,44 @@ class FakeAR730(object):
                 return "Error: Unrecognized command found at '^' position."
             self.view = "aaa"; return ""
         if cmd == "quit":
-            self.view = {"aaa": "system", "system": "user", "user": "user"}[self.view]
+            self.view = {"aaa": "system", "macprof": "system", "sub": "system",
+                         "system": "user", "user": "user"}[self.view]
             return ""
+        if cmd == "return":
+            self.view = "user"; return ""
+        if self.mgmt is None:
+            import ar730_manager
+            self.mgmt = ar730_manager._DemoMgmt()
+        mg = self.mgmt.run(cmd, self)
+        if mg is not None:
+            return mg
+        if cmd.startswith("mac-access-profile name "):
+            if self.view != "system":
+                return "Error: Unrecognized command found at '^' position."
+            self.profile = cmd.split()[2]
+            self.profiles.setdefault(self.profile, None)
+            self.view = "macprof"; return ""
+        if cmd.startswith("mac-authen "):
+            if self.view != "macprof":
+                return "Error: Unrecognized command found at '^' position."
+            if self.reject_profile_pw:
+                return "Error: The password does not meet the complexity requirement."
+            self.profiles[self.profile] = cmd.split()[-1]
+            return "Info: The password should meet the complexity check requirement."
         if cmd.startswith("screen-length"):
             return ""
         if cmd == "save":
             self.saved = True; self.save_count += 1
             return "__SAVE__"
+
+        if self.wan is None:
+            # محاكي الخطوط موجود في البرنامج نفسه (لوضع التجربة)، ومخرجاته
+            # منسوخة عن الجهاز الحقيقي؛ نستورده متأخراً لأن هذا الملف يُحمَّل قبله
+            import ar730_manager
+            self.wan = ar730_manager._DemoWan()
+        wan = self.wan.run(cmd, self.view)
+        if wan is not None:
+            return wan
 
         if cmd.startswith("display "):
             return self._display(cmd)
@@ -115,7 +161,10 @@ class FakeAR730(object):
             pw = rest[2] if len(rest) > 2 else ""
             if pw == name:
                 return "Error: The password cannot be the same as a user name."
+            if name in self.reject_pw_for:
+                return "Error: Failed to change the password."
             u["pw"] = True
+            u["pwval"] = pw
             return ""
 
         if rest and rest[0] == "user-group":
@@ -126,6 +175,13 @@ class FakeAR730(object):
             if g not in self.groups:
                 return "Error: The user group does not exist."
             u["group"] = g
+            return ""
+
+        if rest and rest[0] == "state" and len(rest) > 1:
+            u = self.users.get(name)
+            if u is None:
+                return "Error: The user does not exist."
+            u["state"] = "B" if rest[1] == "block" else "A"
             return ""
 
         if rest and rest[0] == "privilege":
@@ -170,6 +226,29 @@ class FakeAR730(object):
     def _display(self, cmd):
         if cmd.startswith("display current-configuration configuration aaa"):
             return self._aaa_config()
+
+        if cmd.startswith("display current-configuration configuration mac-access-profile"):
+            # نفس شكل الجهاز: الترويسة، والملف الفارغ بلا سطر mac-authen
+            b = ["#"]
+            for name in sorted(self.profiles):
+                b.append("mac-access-profile name %s" % name)
+                if self.profiles[name]:
+                    b.append(" mac-authen username macaddress format without-hyphen "
+                             "password cipher %%^%%#%08x%%^%%#"
+                             % (zlib.crc32(self.profiles[name].encode()) & 0xffffffff))
+            return "\n".join(b + ["#", "return"])
+
+        if cmd.strip() == "display local-user":
+            rows = ["  " + "-" * 76,
+                    "  User-name                      State  AuthMask  AdminLevel",
+                    "  " + "-" * 76]
+            for name in sorted(self.users):
+                u = self.users[name]
+                rows.append("  %-30s %-6s %-9s %d" % (name, u.get("state", "A"), "X",
+                                                      u.get("priv", 0)))
+            rows.append("  accampus@domain_...            A      SH        15")
+            rows += ["  " + "-" * 76, "  Total %d user(s)" % (len(self.users) + 1)]
+            return "\n".join(rows)
 
         if cmd.startswith("display current-configuration"):
             blocks = ["#", "sysname AR730", "#"]
@@ -216,6 +295,7 @@ class _Channel(object):
         self.pending_save = False
         self.closed = False
         self._line = ""
+        self.pending = []           # دفعات تصل بعد توقف قصير كما يفعل الجهاز
         self.buf += ("\r\nInfo: The max number of VTY users is 8.\r\n"
                      "Warning: The initial password poses security risks.\r\n"
                      + self.dev.prompt()).encode()
@@ -251,9 +331,21 @@ class _Channel(object):
             self.buf += ("\r\nAre you sure to continue?[Y/N]:").encode()
             return
         body = ("\r\n" + out + "\r\n") if out else "\r\n"
+        if cmd.startswith("display current-configuration"):
+            # الجهاز الحقيقي يرسل سطر الإصدار ثم يتوقف وهو يبني الإعداد.
+            # هذا السطر بين قوسين مربعين ويشبه موجّه الأوامر.
+            self.buf += b"\r\n[V300R024C00SPC100]"
+            self.pending.append((body + self.dev.prompt()).encode())
+            return
         self.buf += (body + self.dev.prompt()).encode()
 
-    def recv_ready(self): return len(self.buf) > 0
+    def recv_ready(self):
+        if self.buf:
+            return True
+        if self.pending:
+            # الدفعة التالية تصبح جاهزة، لكن هذه النظرة ترى القناة فارغة
+            self.buf += self.pending.pop(0)
+        return False
 
     def recv(self, n):
         d, self.buf = self.buf[:n], self.buf[n:]

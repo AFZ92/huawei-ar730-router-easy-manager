@@ -5,6 +5,55 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Change & Apply Password** (Settings tab): changes the shared MAC password in
+  `mac-access-profile` and in every MAC account in one operation, unblocks blocked accounts,
+  re-reads the profile to confirm the change, and stops before touching any account if the
+  router rejects the new password.
+- **Internet Lines** tab: discovers every WAN line from its tracked default route and reports,
+  per line, the router's rotation state, the ICMP probe (which makes the router drop a dead
+  line), the HTTPS (TCP 443) probe that reveals an exhausted ISP quota, a live `ping -nexthop`
+  latency and loss measurement, and the physical port speed, CRC errors and recent link drops.
+  It also flags misconfigurations: probes that leave through another line, routes tied to non-ICMP
+  probes (ignored by this firmware), and lines without an HTTPS probe.
+- Take a line out of rotation and put it back exactly as it was; optional automatic monitoring that
+  takes a quota-blocked line out after two failed checks and restores it after two good ones,
+  never removing the last working line.
+- **Management Devices** tab: lets a specific device reach router management over SSH from
+  a user network without joining the management network. You choose the network, the address
+  (or take the highest free one) and the basic ACL; the program validates every choice against
+  the router (leases, existing bindings, static ARP, rule numbers, vty ACL binding, NAC trust,
+  device port) and reports each problem. It then pins the address with a DHCP static binding,
+  blocks spoofing with a static ARP entry, and adds a host permit rule before the deny rule
+  (SSH access; the web page is left on the management port). A rejected step rolls back
+  the earlier ones; success is confirmed by re-reading the router. Removal deletes the rule
+  first and refuses to delete the address you are connected from.
+- Blocked MAC accounts (`display local-user` state `B`) are shown in the Trusted Devices table
+  and flagged in the status bar after every refresh and after adding a device.
+
+### Documentation
+
+- `docs/router/`: a reference of the AR730 commands verified on the device (view, exact reply,
+  verified/rejected/unverified status), the terminal behaviour a client must handle, lessons learned
+  from production incidents, and sanitised terminal captures to build simulator replies from.
+- `docs/portal/`: how the built-in captive portal serves pages and accepts logins, what the
+  built-in customisation options and a custom zip can and cannot do, and the Arabic/English
+  AFZ Systems login page with its build script.
+
+### Fixed
+
+- The Management Devices tab no longer offers web access. Binding `http acl` also filters the
+  router's built-in captive portal, so every client outside the ACL stopped getting the login
+  page. The tab now warns, with the removal command, when `http acl` is set while the portal is
+  enabled.
+- Adding a device is refused while the shared MAC password is still the default placeholder,
+  which previously created accounts the router rejected and then blocked.
+- Passwords in `password cipher` commands are masked in the command log and
+  `ar730_session.log`.
+
 ## [1.0.0] - 2026-08-23
 
 First public release.

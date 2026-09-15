@@ -143,4 +143,10 @@ class Treeview(_Base):
 
     def see(self, iid): pass
     def yview(self, *a): pass
-    def identify_row(self, y): return ""
+    # صفوف بارتفاع 20 وأعمدة بعرض 100 — يكفي لتحديد الخلية تحت المؤشر
+    def identify_row(self, y):
+        i = int(y) // 20
+        return self.order[i] if 0 <= i < len(self.order) else ""
+
+    def identify_column(self, x):
+        return "#%d" % (int(x) // 100 + 1)

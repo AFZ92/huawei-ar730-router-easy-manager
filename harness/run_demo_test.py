@@ -58,6 +58,26 @@ check("جدول الأجهزة فيه الموثوقان",
 check("جدول البوابة فيه sara", "sara" in app.tv_por.get_children())
 check("لا أخطاء", not messagebox.errors(), str(messagebox.errors()))
 
+check("الجهاز المحظور تجريبياً ظاهر",
+      "blocked" in app.tv_dev.item("00005e005303", "tags"))
+
+# تغيير كلمة السر وتعميمها يعمل على الراوتر الوهمي ويفكّ الحظر
+_Real = M.FieldDialog
+class _Filled(_Real):
+    def __init__(self, parent, title, fields):
+        self.fields = fields
+        _Real.__init__(self, parent, title, fields)
+    def wait_window(self, w=None):
+        self._vars["pw"].set("Train-Pass-9"); self._vars["pw2"].set("Train-Pass-9")
+        self._ok()
+M.FieldDialog = _Filled
+app.on_rotate_mac_password()
+M.FieldDialog = _Real
+dv = M._DemoParamiko.device
+check("تغيير كلمة السر بلا أخطاء", not messagebox.errors(), str(messagebox.errors()))
+check("الملف التجريبي تغيّر", dv.profiles["m_wl"] == "Train-Pass-9")
+check("فُكّ الحظر التجريبي", dv.users["00005e005303"].get("state") == "A")
+
 # نتأكد أن الراوتر الوهمي يفرض قواعد الجهاز الحقيقي
 d = M._DemoParamiko.device
 d.view = "aaa"
@@ -68,6 +88,34 @@ check("يرفض كلمة سر تساوي الاسم",
       "same as a user name" in d.run("local-user t password cipher t"))
 check("يرفض irreversible-cipher",
       "irreversible" in d.run("local-user t password irreversible-cipher X"))
+
+# تبويب الخطوط: WAN1 محجوب عمداً في وضع التجربة
+messagebox.reset()
+lines = app.on_check_lines()
+verdicts = {l["gw"]: l["verdict"] for l in (lines or [])}
+check("فحص الخطوط التجريبية", verdicts.get("192.168.1.1") == "blocked"
+      and verdicts.get("192.168.4.1") == "ok", str(verdicts))
+check("فحص الخطوط بلا أخطاء", not messagebox.errors(), str(messagebox.errors()))
+
+# أجهزة الإدارة على الراوتر الوهمي: الجهاز الموثوق المتصل يصبح جهاز إدارة
+messagebox.reset()
+class _Mgmt(_Real):
+    def __init__(self, parent, title, fields):
+        self.fields = fields
+        _Real.__init__(self, parent, title, fields)
+    def wait_window(self, w=None):
+        for k, v in {"mac": "0000-5e00-5302", "name": "Demo", "net": "Vlanif20", "ip": "",
+                     "acl": "2999"}.items():
+            self._vars[k].set(v)
+        self._ok()
+M.FieldDialog = _Mgmt
+app.on_add_mgmt()
+M.FieldDialog = _Real
+dm = M._DemoParamiko.device.mgmt
+check("جهاز إدارة تجريبي بلا أخطاء", not messagebox.errors(), str(messagebox.errors()))
+check("قاعدة ACL تجريبية", 100 in dm.acls["2999"]["rules"], str(dm.acls["2999"]["rules"]))
+check("الجدول يعرضه جاهزاً", app.tv_mgmt.get_children() and
+      app.tv_mgmt.item(app.tv_mgmt.get_children()[0], "tags") == ("ok",))
 
 app._on_close()
 print("\nنجح %d من %d" % (sum(ok), len(ok)))

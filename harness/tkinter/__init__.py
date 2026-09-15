@@ -18,7 +18,7 @@ WM_METHODS = {
     "bind_all", "unbind", "state", "wm_state", "columnconfigure",
     "rowconfigure", "grid_columnconfigure", "grid_rowconfigure",
     "pack_propagate", "grid_propagate", "event_generate", "mainloop",
-    "clipboard_clear", "clipboard_append", "tk_focusNext",
+    "tk_focusNext",
 }
 GEO_METHODS = {"place", "pack_forget", "grid_forget", "grid_remove"}
 
@@ -28,6 +28,12 @@ PACK_ORDER = []
 
 # مقاس شاشة افتراضي للاختبارات؛ تستطيع تغييره لفحص الشاشات الصغيرة
 SCREEN = [1920, 1080]
+
+# الحافظة مشتركة بين كل النوافذ كما في Tk
+CLIPBOARD = [""]
+
+# آخر قائمة منبثقة فُتحت، كي تضغط الاختبارات بنودها
+MENUS = []
 
 
 def reset_pack_order():
@@ -73,6 +79,12 @@ class _Base(object):
         raise AttributeError(
             "%s has no attribute %r" % (type(self).__name__, name))
 
+    def clipboard_clear(self):
+        CLIPBOARD[0] = ""
+
+    def clipboard_append(self, text):
+        CLIPBOARD[0] += text
+
     # -- الرُقباء: نحفظها كي تستطيع الاختبارات إطلاق الأحداث ---------------
     def bind(self, sequence=None, func=None, add=None):
         if func is None:
@@ -83,8 +95,11 @@ class _Base(object):
     def event_generate(self, sequence, **kw):
         """يطلق رُقباء حدث ما بكائن حدث بسيط يحمل ما مُرّر من خصائص."""
         ev = Event(**kw)
+        result = None
         for func in self.bindings.get(sequence, []):
-            func(ev)
+            r = func(ev)
+            result = r if r is not None else result
+        return result
 
     # -- المقاس: نسجّله ونسمح للاختبارات بضبط الأبعاد المطلوبة -----------
     def geometry(self, spec=None):
@@ -165,9 +180,14 @@ class Button(_Base): pass
 class Entry(_Base): pass
 class Canvas(_Base): pass
 class Menu(_Base):
-    def add_command(self, **kw): pass
+    def __init__(self, master=None, **kw):
+        _Base.__init__(self, master, **kw)
+        self.entries = []          # (label, command)
+
+    def add_command(self, **kw): self.entries.append((kw.get("label"), kw.get("command")))
     def add_cascade(self, **kw): pass
     def add_separator(self, **kw): pass
+    def tk_popup(self, x, y, entry=""): MENUS.append(self)
 class PhotoImage(_Base): pass
 
 
