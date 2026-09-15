@@ -1,0 +1,425 @@
+# Real AR730 terminal captures (VRP V300R024C00SPC100)
+#
+# Pasted verbatim from the router's SSH terminal during development, then
+# sanitised: the hostname serial, device MAC addresses (mapped consistently to
+# the 00-00-5E-00-53-xx documentation range), password ciphers and plaintext
+# passwords are replaced. Column widths and caret (^) positions are preserved.
+# Typos such as "isplay" are real: pasting after long output drops the first
+# character. Use these files as the reference when changing the simulators.
+#
+==============================================================================
+# portal local-server status, flash listing, portal help
+# captured 2026-09-15 13:55:21 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display portal local-server
+ Portal local-server config       :
+  server status                   : enable
+  Heartbeat-check status          : disable
+  server ip                       : 10.0.255.1
+  authentication method           : chap
+  protocol                        : http
+  https ssl-policy                : -
+  server port                     : 8080
+  session-timeout                 : 8(h)
+  syslog-limit                    : enable
+  syslog-limit period             : 300(s)
+  server url                      : -
+  server pagename                 : -  
+  server page-text                : -
+  server policy-text              : -
+  server background-image         : default-image0
+  server background-color         : -
+  server logo                     : -
+  server ad-image                 : -
+<AR730_XXXXXXXXXXXXXXXXXXXX>dir flash:
+Directory of flash:/
+
+  Idx  Attr     Size(Byte)  Date        Time(LMT)  FileName 
+    0  drw-              -  Aug 18 2026 12:08:53   shelldir
+    1  -rw-        552,976  Aug 29 2026 15:09:42   webdata.db
+    2  drw-              -  Sep 15 2026 15:48:50   AUTO_BACKUP
+    3  drw-              -  Jun 01 2024 05:27:29   cdr
+    4  -rw-          4,831  Aug 18 2026 12:09:59   s.houp_CA.cer
+    5  -rw-         17,537  Aug 22 2026 13:16:34   nac-backup.cfg
+    6  drw-              -  Aug 18 2026 16:48:38   capturefiles
+    7  drw-              -  Jun 01 2024 05:28:50   dhcp
+    8  drw-              -  Jun 01 2024 05:28:03   slog
+    9  -rw-         17,261  Aug 18 2026 16:49:29   default_ca.cer
+   10  -rw-            200  Jun 01 2024 05:27:30   hostkey_ECC
+   11  drw-              -  Jun 01 2024 05:28:12   logopath
+   12  drw-              -  Sep 09 2026 11:09:55   backupcfg
+   13  -rw-      1,344,896  Jun 01 2024 05:31:17   AR700_V300R023SPH001.pat
+   14  drw-              -  Aug 18 2026 12:08:51   shlogfile
+   15  -ro-          1,930  Aug 18 2026 12:09:59   houp_hwpki_root_ca.cer
+   16  -rw-          2,375  Aug 18 2026 16:41:29   vrpcfg_auto_backup.zip
+   17  -rw-          1,253  Aug 18 2026 12:10:52   default_local.cer
+   18  -rw-         58,368  Sep 09 2026 08:51:32   url-default.app
+   19  drw-              -  Aug 29 2026 15:09:47   logfile
+   20  -rw-          7,531  Sep 15 2026 15:48:50   vrpcfg.zip
+                                          
+613,304 KB total available (198,276 KB free)
+<AR730_XXXXXXXXXXXXXXXXXXXX>isplay current-configuration | include portal
+                            ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include sftp|stelnet|scp
+ stelnet server enable
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server load ?
+  STRING<1-64>  [drive][path][file name]
+  flash:        Device name
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server load 
+                                                     ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server ?
+  ad-image               Advertisement image
+  authentication-method  Authentication method
+  background-color       Background color
+  background-image       Background image
+  http                   HTTP
+  https                  HTTPS
+  ip                     Specify IP config
+  keep-alive             Specify keepalive setting
+  load                   Load portal page file
+  logo                   Logo
+  page-text              Portal page file
+  policy-text            Portal policy file
+  server-source          Listen
+  syslog-limit           Portal local-server user syslog limit
+  timer                  Specify timer parameters
+  url                    Portal local server's URL
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server 
+                                                ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+
+==============================================================================
+# portal config, ssh status, portal option help
+# captured 2026-09-15 14:01:20 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include portal
+portal local-server ip 10.0.255.1
+portal local-server http port 8080
+portal local-server server-source all-interface
+ portal-access-profile p_portal
+ access-domain portalusers portal force
+authentication-profile name p_portal_only
+ portal-access-profile p_portal
+ access-domain portalusers portal force
+authentication-profile name portal_authen_profile
+portal captive-bypass enable
+portal-access-profile name p_portal
+ portal local-server enable layer3
+portal-access-profile name portal_access_profile
+ domain portalusers
+ local-user testportal password cipher %^%#<masked>%^%#
+ local-user testportal privilege level 0
+ local-user testportal service-type web
+ local-user testportal user-group grp_staff
+<AR730_XXXXXXXXXXXXXXXXXXXX>dir flash:/logopath/
+Info: File can't be found in the directory
+613,304 KB total available (198,276 KB free)
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ssh server status
+ SSH version                         :2.0
+ SSH connection timeout              :60 seconds
+ SSH server key generating interval  :0 hours
+ SSH Authentication retries          :3 times
+ SFTP Server                         :Disable
+ Stelnet server                      :Enable
+ Scp server                          :Disable
+ SSH server ciper                    :aes128-ctr aes192-ctr aes256-ctr 
+ SSH server  mac                     :hmac-sha2-256 
+ SSH server  key                     :diffie-hellman-group-exchange-sha1 diffie-hellman-group14-sha1 diffie-hellman-group14-sha256 diffie-hellman-group15-sha512 diffie-hellman-group-exchange-sha256 diffie-hellman-group16-sha512 
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ssh user-information
+ -------------------------------------------------------------------------------
+ Username         Auth-type          User-public-key-name
+ -------------------------------------------------------------------------------
+ admin            password           null                           
+ -------------------------------------------------------------------------------
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view 
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server logo ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server background-image ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server background-image ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server background-color ?
+  STRING<7>  The color value of RGB(Range:#000000-#FFFFFF, Example:#EEEEEE)
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server ad-image ?       
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server page-text ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server policy-text ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server url ?       
+  STRING<1-64>  Specify Portal local server's URL
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+
+==============================================================================
+# enabling the SFTP server; first SFTP session from the Mac
+# captured 2026-09-15 14:08:53 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include ssh
+ local-user admin service-type terminal ssh http
+ local-user accampus@domain_accampus service-type ssh http
+ ssh client first-time enable
+ ssh server permit interface all
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view                                         Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server logo load ?
+  STRING<5-64>   Logo file(type:jpg/png, size(px):591*80)
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server logo load ?
+  STRING<5-64>   Logo file(type:jpg/png, size(px):591*80)
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server background-image load ?
+  STRING<5-64>    Background image(type:jpg/png, size(px):1366*768)
+  default-image1  Default background image 1
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server ad-image load ?       
+  STRING<5-64>   Advertisement image file(type:jpg/png, size(px):670*405)
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server page-text load ?
+  STRING<1-64>  [drive][path][file name]
+  flash:        Device name
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server policy-text load ?
+  STRING<1-64>  [drive][path][file name]
+  flash:        Device name
+[AR730_XXXXXXXXXXXXXXXXXXXX]sftp ?                               
+  STRING<1-255>  IP address or host name of a remote system
+  -a             Set the source IP address of SSH packets
+  -i             Set the client source interface of SFTP
+  client-source  Set the SFTP source
+  ipv6           IPv6 Protocol
+  server         Set SFTP server
+[AR730_XXXXXXXXXXXXXXXXXXXX]ssh user admin ?
+  assign               Specify the key
+  authentication-type  Authentication type
+[AR730_XXXXXXXXXXXXXXXXXXXX]ssh server ?   
+  authentication-retries  Specify the authentication times
+  cipher                  Cipher algorithm
+  hmac                    HMAC algorithm
+  key-exchange            Ssh key exchange algorithm
+  permit                  Specify matched interface permit
+  port                    Set SSH port number
+  rekey-interval          Specify the interval generated by SSH sever key
+  timeout                 Specify the timeout of authentication
+[AR730_XXXXXXXXXXXXXXXXXXXX]sftp server ?
+  enable  Enable SFTP server
+[AR730_XXXXXXXXXXXXXXXXXXXX]sftp server enable
+Info: Succeeded in starting the SFTP server.
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ssh server status
+ SSH version                         :2.0
+ SSH connection timeout              :60 seconds
+ SSH server key generating interval  :0 hours
+ SSH Authentication retries          :3 times
+ SFTP Server                         :Enable
+ Stelnet server                      :Enable
+ Scp server                          :Disable
+ SSH server ciper                    :aes128-ctr aes192-ctr aes256-ctr 
+ SSH server  mac                     :hmac-sha2-256 
+ SSH server  key                     :diffie-hellman-group-exchange-sha1 diffie-hellman-group14-sha1 diffie-hellman-group14-sha256 diffie-hellman-group15-sha512 diffie-hellman-group-exchange-sha256 diffie-hellman-group16-sha512 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+
+user@mac ~ % sftp admin@10.0.20.1
+admin@10.0.20.1's password: 
+Connected to 10.0.20.1.
+sftp> pwd
+Remote working directory: /
+sftp> ls
+$_user                                  AR700.cfg                               
+AR700_V300R023C00SPC100.cc              AR700_V300R023SPH001.pat                
+AR700_V300R024C00SPC100.cc              AR700_V300R024C00SPC100_cp0.cc          
+AR700_V300R024C00SPC100_cp1.cc          AUTO_BACKUP                             
+backupcfg                               brdxpon_snmp_cfg.efs                    
+ca.cer                                  ca_config.ini                           
+capturefiles                            cdr                                     
+crash                                   default-sdb                             
+default_ca.cer                          default_local.cer                       
+dhcp                                    file-default.app                        
+hostkey_ECC                             houp_hwpki_root_ca.cer                  
+local.cer                               localuser                               
+logfile                                 logopath                                
+nac-backup.cfg                          private-data.txt                        
+s.houp_CA.cer                           shelldir                                
+shlogfile                               slog                                    
+sqlitedb                                startup_v1.rdb                          
+startup_v1_bak.rdb                      update                                  
+url-default.app                         url_backup.sdb                          
+vrpcfg.zip                              vrpcfg_auto_backup.zip                  
+vuScript                                webdata.db                              
+sftp> bye
+user@mac ~ %
+
+==============================================================================
+# loading page-text / policy-text / logo; SFTP upload
+# captured 2026-09-15 14:17:42 UTC
+==============================================================================
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> system-view             
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo portal local-server ?
+  ad-image               Advertisement image
+  authentication-method  Authentication method
+  background-color       Background color
+  background-image       Background image
+  http                   HTTP
+  https                  HTTPS
+  ip                     Specify IP config
+  keep-alive             Specify keepalive setting
+  load                   Load portal page file
+  logo                   Logo
+  page-text              Portal page file
+  policy-text            Portal policy file
+  server-source          Listen
+  syslog-limit           Portal local-server user syslog limit
+  timer                  Specify timer parameters
+  url                    Portal local server's URL
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo portal local-server logo ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo portal local-server page-text ?
+  load  Load portal page file
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server page-text load flash:/welcome.txt
+Info: The loading process may take a few seconds.Please wait for a moment.
+Info: Load web file successfully.
+Warning: The configuration will not take effect and lost after you delete file and reboot.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server policy-text load flash:/policy.txt
+Info: The loading process may take a few seconds.Please wait for a moment.
+Info: Load web file successfully.
+Warning: The configuration will not take effect and lost after you delete file and reboot.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server logo load flash:/logo.png
+Info: The loading process may take a few seconds.Please wait for a moment.
+Info: Load web file successfully.
+Warning: The configuration will not take effect and lost after you delete file and reboot.
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display portal local-server
+ Portal local-server config       :
+  server status                   : enable
+  Heartbeat-check status          : disable
+  server ip                       : 10.0.255.1
+  authentication method           : chap
+  protocol                        : http
+  https ssl-policy                : -
+  server port                     : 8080
+  session-timeout                 : 8(h)
+  syslog-limit                    : enable
+  syslog-limit period             : 300(s)
+  server url                      : -
+  server pagename                 : -  
+  server page-text                : flash:/welcome.txt
+  server policy-text              : flash:/policy.txt
+  server background-image         : default-image0
+  server background-color         : -
+  server logo                     : flash:/logo.png
+  server ad-image                 : -
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+user@mac ~ % cd ~/portal_test
+user@mac portal_test % sftp admin@10.0.20.1
+admin@10.0.20.1's password: 
+Connected to 10.0.20.1.
+sftp> put welcome.txt
+Uploading welcome.txt to /welcome.txt
+welcome.txt                                   100%   61     0.6KB/s   00:00    
+sftp> put policy.txt
+Uploading policy.txt to /policy.txt
+policy.txt                                    100%  139     1.2KB/s   00:00    
+sftp> put logo.png
+Uploading logo.png to /logo.png
+logo.png                                      100%  327     3.1KB/s   00:00    
+sftp> ls -l welcome.txt policy.txt logo.png
+-rwxrwxrwx    ? 0        0              61 Jan 13  1970 welcome.txt
+sftp> bye
+user@mac portal_test %
+
+==============================================================================
+# phone stuck before portal redirect: access-user detail, captive/free-rule config,
+# service-scheme display form rejected, captive-bypass undo/redo (both silent)
+# captured 2026-09-15 (MAC anonymised)
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display access-user mac-address 0000-5e00-53f0
+
+Basic:
+  User ID                         : 1281
+  User name                       : 00005e0053f0
+  Domain-name                     : -                               
+  User MAC                        : 0000-5e00-53f0
+  User IP address                 : 10.0.21.68
+  User vpn-instance               : -
+  User IPv6 address               : -
+  User access Interface           : GigabitEthernet0/0/2
+  User vlan event                 : Pre-authen     
+  QinQVlan/UserVlan               : 0/20
+  User vlan source                : user request                  
+  User access time                : 2026/09/15 17:09:26
+  Accounting start response time  : -
+  Option82 information            : -
+  User access type                : None
+  Terminal Device Type            : Data Terminal  
+  Dynamic service scheme          : sch_preauth
+
+AAA:
+  User authentication type        : No authentication
+  Current authentication method   : None
+  Current authorization method    : Local
+  Current accounting method       : None  
+                                          
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include captive|https-redirect|free-rule
+authentication https-redirect enable
+ free-rule-template default_free_rule
+ free-rule-template default_free_rule
+portal captive-bypass enable
+free-rule-template name default_free_rule
+ free-rule 1 destination ip 10.0.255.1 mask 255.255.255.255 source ip any
+ free-rule 3 destination ip 10.0.20.1 mask 255.255.255.255 source ip any
+ free-rule 4 destination ip 10.0.10.1 mask 255.255.255.255 source ip any
+ free-rule 5 destination ip 1.1.1.1 mask 255.255.255.255 source ip any
+ free-rule 6 destination ip 8.8.8.8 mask 255.255.255.255 source ip any
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration service-scheme
+                                                                        ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo portal captive-bypass enable
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal captive-bypass enable
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+
+==============================================================================
+# undo portal local-server load (back to built-in pages) and re-loading the zip
+# (the load asks Y/N when the portal is in use; an invalid answer re-asks)
+# captured 2026-09-15
+==============================================================================
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo portal local-server load
+Info: The operation will load the default web file. Please wait for a moment..
+Info: Load web file successfully.
+Warning: The configuration will not take effect and lost after you delete file and reboot.
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display portal local-server
+ Portal local-server config       :
+  server status                   : enable
+  Heartbeat-check status          : disable
+  server ip                       : 10.0.255.1
+  authentication method           : chap
+  protocol                        : http
+  https ssl-policy                : -
+  server port                     : 8080
+  session-timeout                 : 8(h)
+  syslog-limit                    : enable
+  syslog-limit period             : 300(s)
+  server url                      : -
+  server pagename                 : -  
+  server page-text                : -
+  server policy-text              : -
+  server background-image         : default-image0
+  server background-color         : -
+  server logo                     : -
+  server ad-image                 : -
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]portal local-server load flash:/portal_ar_v3.zip
+Warning: Portal local server has been enabled, and this operation will affect online user, continue?[Y/N]:r
+Error: Please choose 'YES' or 'NO' first before pressing 'Enter'. [Y/N]:Y
+Info: The loading process may take a few seconds.Please wait for a moment.
+Info: Load web file successfully.
+Warning: The configuration will not take effect and lost after you delete file and reboot.
+[AR730_XXXXXXXXXXXXXXXXXXXX]

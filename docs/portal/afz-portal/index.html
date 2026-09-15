@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AFZ Systems</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font-family:Tahoma,"Segoe UI","Geeza Pro",Arial,sans-serif;background:#0b3d4a;background:linear-gradient(160deg,#0a6e5c 0%,#0b3d4a 60%,#08222b 100%);color:#1d2b30;display:flex;flex-direction:column;align-items:center;padding:24px 16px}
+.top{width:100%;max-width:420px;display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:18px}
+.brand{font-size:22px;font-weight:bold;letter-spacing:.5px}
+.brand span{color:#7fe3c8}
+.lang{background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:18px;padding:6px 14px;font-size:14px;cursor:pointer}
+.card{width:100%;max-width:420px;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:24px 22px}
+h1{font-size:20px;margin:0 0 6px;color:#0a6e5c}
+.welcome{font-size:14px;color:#4a5a60;margin:0 0 20px;line-height:1.7}
+label{display:block;font-size:14px;margin:12px 0 6px}
+input[type=text],input[type=password]{width:100%;height:44px;border:1px solid #c9d4d8;border-radius:8px;padding:0 12px;font-size:16px;direction:ltr;text-align:left}
+input[type=text]:focus,input[type=password]:focus{outline:none;border-color:#0a6e5c;box-shadow:0 0 0 3px rgba(10,110,92,.15)}
+.policy{margin:16px 0 4px;font-size:13px;display:flex;gap:8px;align-items:flex-start;line-height:1.6}
+.policy input{margin-top:4px;width:18px;height:18px}
+.policy a{color:#0a6e5c}
+.terms{display:none;background:#f3f7f8;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.7;color:#4a5a60;margin-top:8px}
+.btn{width:100%;height:46px;margin-top:18px;border:0;border-radius:8px;background:#0a6e5c;color:#fff;font-size:17px;cursor:pointer}
+.btn:disabled{background:#9fb8b2;cursor:default}
+.msg{display:none;margin-top:14px;padding:10px 12px;border-radius:8px;background:#fdecea;color:#a12622;font-size:14px}
+.foot{color:rgba(255,255,255,.75);font-size:12px;margin-top:18px;text-align:center}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">AFZ <span>Systems</span></div>
+  <button type="button" class="lang" id="langBtn" onclick="toggleLang()">English</button>
+</div>
+
+<div class="card">
+  <h1 data-t="title">تسجيل الدخول إلى الشبكة</h1>
+  <p class="welcome" data-t="welcome">مرحباً بكم. أدخل اسم المستخدم وكلمة المرور للاتصال بالإنترنت.</p>
+
+  <form id="LoginForm" name="LoginForm" method="post" action="http://10.0.255.1:8080/login" target="_top" onsubmit="return submitFunc()">
+    <label for="username" data-t="user">اسم المستخدم</label>
+    <input type="text" id="username" name="username" maxlength="65" autocomplete="off" autocapitalize="none" autocorrect="off">
+
+    <label for="password" data-t="pass">كلمة المرور</label>
+    <input type="password" id="password" name="password" maxlength="128" autocomplete="off">
+
+    <input type="hidden" name="RedirectUrl" value="">
+    <input type="hidden" name="anonymous" value="DISABLE">
+    <input type="hidden" name="anonymousurl" value="">
+
+    <div class="policy">
+      <input type="checkbox" id="checkbox" name="checkbox" onclick="syncBtn()">
+      <div>
+        <span data-t="accept">أوافق على</span>
+        <a href="javascript:void(0)" onclick="toggleTerms()" data-t="terms_link">شروط الاستخدام</a>
+        <div class="terms" id="terms" data-t="terms">يُستخدم هذا الاتصال لأغراض مشروعة فقط. يُمنع مشاركة حسابك مع الآخرين، وقد تُسجَّل بيانات الاتصال لأغراض الأمان.</div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn" id="sm" name="Login" disabled data-t="login">دخول</button>
+    <div class="msg" id="msg"></div>
+  </form>
+</div>
+
+<div class="foot">© AFZ Systems</div>
+
+<script>
+var T = {
+  ar: {title:"تسجيل الدخول إلى الشبكة", welcome:"مرحباً بكم. أدخل اسم المستخدم وكلمة المرور للاتصال بالإنترنت.",
+       user:"اسم المستخدم", pass:"كلمة المرور", accept:"أوافق على", terms_link:"شروط الاستخدام",
+       terms:"يُستخدم هذا الاتصال لأغراض مشروعة فقط. يُمنع مشاركة حسابك مع الآخرين، وقد تُسجَّل بيانات الاتصال لأغراض الأمان.",
+       login:"دخول", other:"English", empty:"أدخل اسم المستخدم وكلمة المرور.", wait:"جارٍ الدخول…",
+       online:"هذا الحساب متصل بالفعل."},
+  en: {title:"Network Login", welcome:"Welcome. Enter your username and password to connect to the internet.",
+       user:"Username", pass:"Password", accept:"I accept the", terms_link:"Terms of Use",
+       terms:"This connection is for lawful use only. Do not share your account with others. Connection data may be logged for security purposes.",
+       login:"Login", other:"العربية", empty:"Enter your username and password.", wait:"Signing in…",
+       online:"This account is already online."}
+};
+var lang = "ar";
+try { if (localStorage.getItem("afz_lang") === "en") lang = "en"; } catch (e) {}
+
+function applyLang() {
+  var t = T[lang], els = document.querySelectorAll("[data-t]");
+  for (var i = 0; i < els.length; i++) els[i].innerHTML = t[els[i].getAttribute("data-t")];
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  document.getElementById("langBtn").innerHTML = t.other;
+}
+function toggleLang() {
+  lang = lang === "ar" ? "en" : "ar";
+  try { localStorage.setItem("afz_lang", lang); } catch (e) {}
+  applyLang();
+}
+function toggleTerms() {
+  var b = document.getElementById("terms");
+  b.style.display = b.style.display === "block" ? "none" : "block";
+}
+function syncBtn() {
+  document.getElementById("sm").disabled = !document.getElementById("checkbox").checked;
+}
+function showMsg(s) {
+  var m = document.getElementById("msg");
+  m.innerHTML = s; m.style.display = s ? "block" : "none";
+}
+function redirectParam() {
+  var u = top.location.href, i = u.indexOf("RedirectUrl=");
+  return i >= 0 ? u.substr(i + 12, 200) : "";
+}
+function submitFunc() {
+  var f = document.LoginForm;
+  if (!f.username.value || !f.password.value) { showMsg(T[lang].empty); return false; }
+  var r = redirectParam();
+  f.RedirectUrl.value = r;
+  if (r) f.action = "http://10.0.255.1:8080/login?RedirectUrl=" + r;
+  // the router does not fill the custom success page, so remember what we know
+  try {
+    localStorage.setItem("afz_user", f.username.value);
+    localStorage.setItem("afz_time", String(Math.floor(Date.now() / 1000)));
+  } catch (e) {}
+  var ua = navigator.userAgent;
+  var apple = navigator.platform.indexOf("Mac") !== -1 || /\(i[^;]+;( U;)? CPU.+Mac OS X/.test(ua);
+  if (!apple || !window.XMLHttpRequest) return true;
+  // Apple browsers: submit with XHR like the router's own page
+  showMsg("");
+  document.getElementById("sm").innerHTML = T[lang].wait;
+  var data = "username=" + encodeURIComponent(f.username.value) +
+             "&password=" + encodeURIComponent(f.password.value) +
+             "&RedirectUrl=" + encodeURIComponent(f.RedirectUrl.value) +
+             "&anonymous=DISABLE&anonymousurl=&checkbox=on";
+  var x = new XMLHttpRequest();
+  x.onreadystatechange = function () {
+    if (x.readyState !== 4) return;
+    document.getElementById("sm").innerHTML = T[lang].login;
+    if (x.status == 200 && x.responseURL && x.responseURL.indexOf("auth_success.html") !== -1) {
+      top.location.href = x.responseURL;
+    } else if (x.responseText.indexOf("User Has Been Online") !== -1 || x.responseText.indexOf("用户已经在线") !== -1) {
+      showMsg(T[lang].online);
+    } else {
+      document.open(); document.write(x.responseText); document.close();
+    }
+  };
+  x.open("POST", "http://10.0.255.1:8080/login", true);
+  x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+  x.send(data);
+  return false;
+}
+applyLang();
+</script>
+</body>
+</html>

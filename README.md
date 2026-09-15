@@ -236,6 +236,10 @@ harness/
   paramiko.py           simulated AR730 speaking VRP
   tkinter/              headless substitute implementing real widget behaviour
   make_preview.py       generates an HTML preview of the interface
+docs/
+  router/               verified VRP command reference, terminal behaviour, lessons learned,
+                        and sanitised captures from the real AR730
+  portal/               built-in captive portal behaviour and the custom Arabic login page
 run.sh / run.bat        launchers
 build_windows.bat       produces a standalone .exe via PyInstaller
 ```

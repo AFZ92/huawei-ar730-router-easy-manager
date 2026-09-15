@@ -1,0 +1,241 @@
+# Real AR730 terminal captures (VRP V300R024C00SPC100)
+#
+# Pasted verbatim from the router's SSH terminal during development, then
+# sanitised: the hostname serial, device MAC addresses (mapped consistently to
+# the 00-00-5E-00-53-xx documentation range), password ciphers and plaintext
+# passwords are replaced. Column widths and caret (^) positions are preserved.
+# Typos such as "isplay" are real: pasting after long output drops the first
+# character. Use these files as the reference when changing the simulators.
+#
+==============================================================================
+# MAC accounts, domain, blocked account and unblock
+# captured 2026-09-14 11:50:17 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include mac-authen
+ access-domain macwhitelist mac-authen force
+ mac-authen username macaddress format without-hyphen password cipher %^%#<masked>%^%#
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+انا اريد معرفة الماك الذي تم اضافته و تمت اضافته على الجهاز
+
+==============================================================================
+# continued
+# captured 2026-09-14 12:01:04 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration aaa | include macwhitelist
+ domain macwhitelist
+<AR730_XXXXXXXXXXXXXXXXXXXX>display domain name macwhitelist
+
+  Domain-name                     : macwhitelist                    
+  Domain-index                    : 3
+  Domain-state                    : Active
+  Authentication-scheme-name      : local_auth
+  Accounting-scheme-name          : default
+  Authorization-scheme-name       : -
+  Service-scheme-name             : -
+  RADIUS-server-template          : default
+  Accounting-copy-RADIUS-template : -
+  HWTACACS-server-template        : -
+  User-group                      : -
+  Push-url-address                : -
+  Flow-statistic                  : -
+  Tariff-level                    : -
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration aaa | include service-type 8021x
+ local-user 00005e005302 service-type 8021x
+ local-user 00005e005301 service-type 8021x
+ local-user 00005e005303 service-type 8021x
+ local-user 00005e005304 service-type 8021x
+ local-user 00005e005305 service-type 8021x
+<AR730_XXXXXXXXXXXXXXXXXXXX>display local-user
+  ----------------------------------------------------------------------------
+  User-name                      State  AuthMask  AdminLevel  
+  ----------------------------------------------------------------------------
+  admin                          A      MSH       15         
+  internet                       A      W         0          
+  testportal                     A      W         0          
+  00005e005302                   A      X         0          
+  00005e005301                   A      X         0          
+  00005e005303                   B      X         0          
+  00005e005304                   A      X         0          
+  00005e005305                   A      X         0          
+  accampus@domain_...            A      SH        15         
+  ----------------------------------------------------------------------------
+  Total 9 user(s)
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration aaa | include user-group
+ local-user internet user-group grp_managers
+ local-user testportal user-group grp_staff
+ local-user 00005e005302 user-group grp_managers
+ local-user 00005e005301 user-group grp_managers
+ local-user 00005e005303 user-group grp_managers
+ local-user 00005e005304 user-group grp_managers
+ local-user 00005e005305 user-group grp_managers
+<AR730_XXXXXXXXXXXXXXXXXXXX>display saved-configuration | include service-type 8021x
+ local-user 00005e005302 service-type 8021x
+ local-user 00005e005301 service-type 8021x
+ local-user 00005e005303 service-type 8021x
+ local-user 00005e005304 service-type 8021x
+ local-user 00005e005305 service-type 8021x
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# display local-user username (blocked -> active)
+# captured 2026-09-14 12:02:52 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display local-user username 00005e005303
+  The contents of local user(s):
+  Password             : ****************
+  State                : block     
+  Service-type-mask    : X
+  Privilege level      : 0
+  Ftp-directory        : - 
+  Access-limit         : Yes      
+  Access-limit-max     : 4294967295   
+  Accessed-num         : 0   
+  Idle-timeout         : -
+  User-group           : grp_managers
+  Block-time-left      : 4 Min(s)
+  Original-password    : Yes
+  Password-set-time    : 2026-09-14 13:43:25+02:00
+  Password-expired     : No
+  Password-expire-time : -
+  Account-expire-time  : -
+  Bind IP              : -
+  Last login ip        : -
+  Last login time      : -
+  Login fail count     : 0
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]aaa
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005303 state active
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]quit
+<AR730_XXXXXXXXXXXXXXXXXXXX>save
+ Warning: The current configuration will be written to the device. 
+ Are you sure to continue?[Y/N]:Y
+  It will take several minutes to save configuration file, please wait..............
+  Configuration file had been saved successfully
+  Note: The configuration file will take effect after being activated
+<AR730_XXXXXXXXXXXXXXXXXXXX>display local-user username 00005e005303
+  The contents of local user(s):
+  Password             : ****************
+  State                : active    
+  Service-type-mask    : X
+  Privilege level      : 0
+  Ftp-directory        : - 
+  Access-limit         : Yes      
+  Access-limit-max     : 4294967295   
+  Accessed-num         : 0   
+  Idle-timeout         : -
+  User-group           : grp_managers
+  Retry-interval       : 4 Min(s)
+  Retry-time-left      : 2
+  Original-password    : Yes
+  Password-set-time    : 2026-09-14 13:43:25+02:00
+  Password-expired     : No
+  Password-expire-time : -
+  Account-expire-time  : -
+  Bind IP              : -
+  Last login ip        : -
+  Last login time      : -
+  Login fail count     : 0
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# mac-access-profile; aaa commands typed in USER view are rejected; quit closes the session
+# captured 2026-09-14 12:08:57 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration mac-access-profile
+[V300R024C00SPC100]
+#
+mac-access-profile name m_wl
+ mac-authen username macaddress format without-hyphen password cipher %^%#<masked>%^%#
+mac-access-profile name mac_access_profile
+#
+return
+<AR730_XXXXXXXXXXXXXXXXXXXX> local-user 00005e005302 password cipher NewPass123
+                                       ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> local-user 00005e005301 password cipher NewPass123
+                                       ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> local-user 00005e005303 password cipher NewPass123
+                                       ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> local-user 00005e005304 password cipher NewPass123
+                                       ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> local-user 00005e005305 password cipher NewPass123
+                                       ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> local-user 00005e005303 state active
+                                       ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX> quit
+
+  Info:Configuration console exit, please retry to log on
+Connection to 10.0.1.1 closed.
+user@mac ~ %
+
+==============================================================================
+# shared MAC password change in the profile view
+# captured 2026-09-14 12:15:12 UTC
+==============================================================================
+[AR730_XXXXXXXXXXXXXXXXXXXX-mac-access-profile-m_wl]mac-authen username macaddress format without-hyphen password cipher <shared-mac-password>
+Info: The password should meet the complexity check requirement.
+[AR730_XXXXXXXXXXXXXXXXXXXX-mac-access-profile-m_wl]
+
+==============================================================================
+# continued
+# captured 2026-09-14 12:16:20 UTC
+==============================================================================
+[AR730_XXXXXXXXXXXXXXXXXXXX-mac-access-profile-m_wl]display this
+[V300R024C00SPC100]
+#
+mac-access-profile name m_wl
+ mac-authen username macaddress format without-hyphen password cipher %^%#<masked>%^%#
+#
+return
+[AR730_XXXXXXXXXXXXXXXXXXXX-mac-access-profile-m_wl]
+
+==============================================================================
+# password change on every MAC account, save
+# captured 2026-09-14 12:18:11 UTC
+==============================================================================
+[AR730_XXXXXXXXXXXXXXXXXXXX-mac-access-profile-m_wl]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]aaa
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005302 password cipher <shared-mac-password>
+Info: After changing the rights (including the password, access type, FTP directory, bind IP, and level) of a local user, the rights of users already online do not change. The change takes effect to users who go online after the change.
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005301 password cipher <shared-mac-password>
+Info: After changing the rights (including the password, access type, FTP directory, bind IP, and level) of a local user, the rights of users already online do not change. The change takes effect to users who go online after the change.
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005303 password cipher <shared-mac-password>
+Info: After changing the rights (including the password, access type, FTP directory, bind IP, and level) of a local user, the rights of users already online do not change. The change takes effect to users who go online after the change.
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005304 password cipher <shared-mac-password>
+Info: After changing the rights (including the password, access type, FTP directory, bind IP, and level) of a local user, the rights of users already online do not change. The change takes effect to users who go online after the change.
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005305 password cipher <shared-mac-password>
+Info: After changing the rights (including the password, access type, FTP directory, bind IP, and level) of a local user, the rights of users already online do not change. The change takes effect to users who go online after the change.
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]local-user 00005e005303 state active
+[AR730_XXXXXXXXXXXXXXXXXXXX-aaa]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]quit
+<AR730_XXXXXXXXXXXXXXXXXXXX>save
+ Warning: The current configuration will be written to the device. 
+ Are you sure to continue?[Y/N]:y
+  It will take several minutes to save configuration file, please wait...............
+  Configuration file had been saved successfully
+  Note: The configuration file will take effect after being activated
+<AR730_XXXXXXXXXXXXXXXXXXXX>display local-user
+  ----------------------------------------------------------------------------
+  User-name                      State  AuthMask  AdminLevel  
+  ----------------------------------------------------------------------------
+  admin                          A      MSH       15         
+  internet                       A      W         0          
+  testportal                     A      W         0          
+  00005e005302                   A      X         0          
+  00005e005301                   A      X         0          
+  00005e005303                   A      X         0          
+  00005e005304                   A      X         0          
+  00005e005305                   A      X         0          
+  accampus@domain_...            A      SH        15         
+  ----------------------------------------------------------------------------
+  Total 9 user(s)
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AFZ Systems</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font-family:Tahoma,"Segoe UI","Geeza Pro",Arial,sans-serif;background:#0b3d4a;background:linear-gradient(160deg,#0a6e5c 0%,#0b3d4a 60%,#08222b 100%);color:#1d2b30;display:flex;flex-direction:column;align-items:center;padding:24px 16px}
+.top{width:100%;max-width:420px;display:flex;justify-content:space-between;align-items:center;color:#fff;margin-bottom:18px}
+.brand{font-size:22px;font-weight:bold;letter-spacing:.5px}
+.brand span{color:#7fe3c8}
+.lang{background:transparent;border:1px solid rgba(255,255,255,.6);color:#fff;border-radius:18px;padding:6px 14px;font-size:14px;cursor:pointer}
+.card{width:100%;max-width:420px;background:#fff;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:24px 22px;text-align:center}
+.ok{width:64px;height:64px;border-radius:50%;background:#e3f4ef;color:#0a6e5c;font-size:36px;line-height:64px;margin:0 auto 12px}
+h1{font-size:20px;margin:0 0 6px;color:#0a6e5c}
+p{font-size:14px;color:#4a5a60;margin:0 0 16px;line-height:1.7}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:8px}
+td{padding:9px 4px;border-bottom:1px solid #eef2f3}
+td.k{color:#6b7b80;text-align:start}
+td.v{text-align:end;direction:ltr;unicode-bidi:plaintext}
+.btn{width:100%;height:46px;margin-top:12px;border:0;border-radius:8px;background:#0a6e5c;color:#fff;font-size:16px;cursor:pointer}
+.btn.out{background:#fff;color:#a12622;border:1px solid #e3b5b3}
+.foot{color:rgba(255,255,255,.75);font-size:12px;margin-top:18px;text-align:center}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">AFZ <span>Systems</span></div>
+  <button type="button" class="lang" id="langBtn" onclick="toggleLang()">English</button>
+</div>
+<div class="card">
+  <div class="ok" style="color:#b26a00">!</div>
+  <h1 data-t="title">هذا الحساب متصل بالفعل</h1>
+  <p data-t="sub">هذا الحساب مسجّل الدخول حالياً. إذا كنت متصلاً من هذا الجهاز فيمكنك استخدام الإنترنت مباشرة.</p>
+  <button type="button" class="btn" onclick="top.location.href='http://10.0.255.1:8080/index.html'" data-t="back">العودة إلى صفحة الدخول</button>
+</div>
+<div class="foot">© AFZ Systems</div>
+<script>
+var T = {
+  ar: {title:"هذا الحساب متصل بالفعل", sub:"هذا الحساب مسجّل الدخول حالياً. إذا كنت متصلاً من هذا الجهاز فيمكنك استخدام الإنترنت مباشرة.", back:"العودة إلى صفحة الدخول", other:"English"},
+  en: {title:"This account is already online", sub:"This account is currently logged in. If it is this device, you can use the internet now.", back:"Back to login page", other:"العربية"}
+};
+var lang = "ar";
+try { if (localStorage.getItem("afz_lang") === "en") lang = "en"; } catch (e) {}
+function applyLang() {
+  var t = T[lang], els = document.querySelectorAll("[data-t]");
+  for (var i = 0; i < els.length; i++) els[i].innerHTML = t[els[i].getAttribute("data-t")];
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+  document.getElementById("langBtn").innerHTML = t.other;
+}
+function toggleLang() {
+  lang = lang === "ar" ? "en" : "ar";
+  try { localStorage.setItem("afz_lang", lang); } catch (e) {}
+  applyLang();
+}
+applyLang();
+</script>
+</body>
+</html>

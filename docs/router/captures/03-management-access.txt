@@ -1,0 +1,639 @@
+# Real AR730 terminal captures (VRP V300R024C00SPC100)
+#
+# Pasted verbatim from the router's SSH terminal during development, then
+# sanitised: the hostname serial, device MAC addresses (mapped consistently to
+# the 00-00-5E-00-53-xx documentation range), password ciphers and plaintext
+# passwords are replaced. Column widths and caret (^) positions are preserved.
+# Typos such as "isplay" are real: pasting after long output drops the first
+# character. Use these files as the reference when changing the simulators.
+#
+==============================================================================
+# ACL 2999, Vlanif config, ARP, DHCP pool, http, help output
+# captured 2026-09-15 11:20:20 UTC
+# NOTE: the pasted help lines executed "arp static 10.0.20.250 aabb-ccdd-eeff" and the static-bind for real (see docs/router/lessons-learned.md)
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>screen-length 0 temporary
+Info: The configuration takes effect on the current user terminal interface only.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display acl 2999
+Basic ACL 2999, 3 rules
+MGMT-ACCESS
+Acl's step is 5
+ rule 5 permit source 10.0.1.0 0.0.0.255 (38 matches)
+ rule 10 permit source 10.0.10.0 0.0.0.255 
+ rule 3000 deny (180 matches)
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration interface Vlanif10
+[V300R024C00SPC100]
+#
+interface Vlanif10
+ description GW-MANAGERS
+ ip address 10.0.10.1 255.255.255.0
+ authentication-profile p_nac
+ dhcp select interface
+ dhcp server lease day 7 hour 0 minute 0 
+ dhcp server dns-list 1.1.1.1 8.8.8.8 
+#
+return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration interface Vlanif20
+[V300R024C00SPC100]
+#
+interface Vlanif20
+ description GW-STAFF
+ ip address 10.0.20.1 255.255.254.0
+ authentication-profile p_nac
+ dhcp select interface
+ dhcp server lease day 7 hour 0 minute 0 
+ dhcp server dns-list 1.1.1.1 8.8.8.8 
+#
+return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include static-bind
+<AR730_XXXXXXXXXXXXXXXXXXXX>display arp static
+IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE 
+                                    VLAN/CEVLAN(SIP/DIP)      PVC
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+Total:0         Dynamic:0       Static:0     Interface:0    
+<AR730_XXXXXXXXXXXXXXXXXXXX>display arp interface Vlanif20
+IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE 
+                                    VLAN/CEVLAN(SIP/DIP)      PVC
+------------------------------------------------------------------------------
+10.0.20.1       0000-5e00-5301            I -         Vlanif20       
+10.0.20.53      0000-5e00-5338  17        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.217     0000-5e00-5313  18        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.211     0000-5e00-5340  19        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.244     0000-5e00-5335  10        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.185     0000-5e00-5336  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.8       0000-5e00-531e  12        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.213     0000-5e00-5310  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.165     0000-5e00-530a  15        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.187     0000-5e00-5316  18        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.193     0000-5e00-5311  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.80      0000-5e00-531a  17        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.145     0000-5e00-5322  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.156     0000-5e00-5327  1         D-0         GE0/0/2        
+                                            20/-      
+10.0.20.39      0000-5e00-5321  19        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.207     0000-5e00-5304  19        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.206     0000-5e00-5333  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.165     0000-5e00-530b  15        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.18      0000-5e00-5328  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.95      0000-5e00-5332  15        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.32      0000-5e00-5326  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.231     0000-5e00-5323  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.232     0000-5e00-5319  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.20.51      0000-5e00-5317  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.228     0000-5e00-5303  20        D-0         GE0/0/2        
+                                            20/-      
+10.0.21.120     0000-5e00-5334  20        D-0         GE0/0/2        
+                                            20/-      
+------------------------------------------------------------------------------
+Total:26        Dynamic:25      Static:0     Interface:1    
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip pool interface Vlanif20 used 
+  Pool-name        : Vlanif20
+  Pool-No          : 2
+  Lease            : 7 Days 0 Hours 0 Minutes
+  Domain-name      : -
+  DNS-server0      : 1.1.1.1         
+  DNS-server1      : 8.8.8.8         
+  NBNS-server0     : -               
+  Netbios-type     : -               
+  Position         : Interface       
+  Status           : Unlocked
+  Gateway-0        : -               
+  Network          : 10.0.20.0
+  Mask             : 255.255.254.0
+  VPN instance     : --
+  Logging          : Disable
+  Conflicted address recycle interval: -
+  Address Statistic: Total       :510       Used        :64         
+                     Idle        :446       Expired     :0          
+                     Conflict    :0         Disabled    :0          
+                     Ping        :0         Decline     :0          
+                     Auth        :0      
+
+ -------------------------------------------------------------------------------------
+  Network section 
+         Start           End       Total    Used Idle(Expired) Conflict Disabled
+ -------------------------------------------------------------------------------------
+       10.0.20.1     10.0.21.254     510      64        446(0)       0     0
+ -------------------------------------------------------------------------------------
+ Client-ID format as follows:            
+   DHCP  : mac-address                 PPPoE   : mac-address            
+   IPSec : user-id/portnumber/vrf      PPP     : interface index            
+   L2TP  : cpu-slot/session-id         SSL-VPN : user-id/session-id
+ -------------------------------------------------------------------------------------
+  Index              IP             Client-ID    Type       Left   Status           
+ -------------------------------------------------------------------------------------
+      6       10.0.20.7        0000-5e00-5307    DHCP     527035   Used             
+     17      10.0.20.18        0000-5e00-5328    DHCP     603057   Used             
+     31      10.0.20.32        0000-5e00-5326    DHCP     603913   Used             
+     38      10.0.20.39        0000-5e00-5321    DHCP     600422   Used             
+     41      10.0.20.42        0000-5e00-5341    DHCP     601850   Used             
+     50      10.0.20.51        0000-5e00-5317    DHCP     604532   Used             
+     52      10.0.20.53        0000-5e00-5338    DHCP     601022   Used             
+     56      10.0.20.57        0000-5e00-532c    DHCP     526144   Used             
+     57      10.0.20.58        0000-5e00-533c    DHCP     546804   Used             
+     70      10.0.20.71        0000-5e00-530f    DHCP     520940   Used             
+     91      10.0.20.92        0000-5e00-5312    DHCP     528551   Used             
+    120     10.0.20.121        0000-5e00-530d    DHCP     523663   Used             
+    164     10.0.20.165        0000-5e00-530b    DHCP     604430   Used             
+    171     10.0.20.172        0000-5e00-531b    DHCP     525690   Used             
+    191     10.0.20.192        0000-5e00-530e    DHCP     524098   Used             
+    195     10.0.20.196        0000-5e00-532e    DHCP     603042   Used             
+    200     10.0.20.201        0000-5e00-531d    DHCP     600930   Used             
+    205     10.0.20.206        0000-5e00-5333    DHCP     604778   Used             
+    206     10.0.20.207        0000-5e00-5304    DHCP     601674   Used             
+    212     10.0.20.213        0000-5e00-5310    DHCP     601434   Used             
+    222     10.0.20.223        0000-5e00-531f    DHCP     528074   Used             
+    223     10.0.20.224        0000-5e00-5314    DHCP     523875   Used             
+    227     10.0.20.228        0000-5e00-5324    DHCP     527842   Used             
+    230     10.0.20.231        0000-5e00-5337    DHCP     519127   Used             
+    231     10.0.20.232        0000-5e00-5319    DHCP     603934   Used             
+    256       10.0.21.1        0000-5e00-533a    DHCP     527302   Used             
+    263       10.0.21.8        0000-5e00-531e    DHCP     603052   Used             
+    274      10.0.21.19        0000-5e00-5315    DHCP     526657   Used             
+    277      10.0.21.22        0000-5e00-532d    DHCP     527833   Used             
+    283      10.0.21.28        0000-5e00-5318    DHCP     522889   Used             
+    290      10.0.21.35        0000-5e00-5339    DHCP     524725   Used             
+    325      10.0.21.70        0000-5e00-532f    DHCP     602073   Used             
+    335      10.0.21.80        0000-5e00-531a    DHCP     603323   Used             
+    350      10.0.21.95        0000-5e00-5332    DHCP     603132   Used             
+    354      10.0.21.99        0000-5e00-5329    DHCP     603495   Used             
+    360     10.0.21.105        0000-5e00-531c    DHCP     602532   Used             
+    366     10.0.21.111        0000-5e00-5309    DHCP     603407   Used             
+    368     10.0.21.113        0000-5e00-5325    DHCP     528180   Used             
+    369     10.0.21.114        0000-5e00-5342    DHCP     526152   Used             
+    375     10.0.21.120        0000-5e00-5334    DHCP     604776   Used             
+    385     10.0.21.130        0000-5e00-5320    DHCP     525428   Used             
+    388     10.0.21.133        0000-5e00-533e    DHCP     526857   Used             
+    395     10.0.21.140        0000-5e00-533b    DHCP     519905   Used             
+    400     10.0.21.145        0000-5e00-5322    DHCP     603567   Used             
+    407     10.0.21.152        0000-5e00-5305    DHCP     599663   Used             
+    411     10.0.21.156        0000-5e00-5327    DHCP     599819   Used             
+    420     10.0.21.165        0000-5e00-530a    DHCP     603159   Used             
+    428     10.0.21.173        0000-5e00-533f    DHCP     601720   Used             
+    440     10.0.21.185        0000-5e00-5336    DHCP     602092   Used             
+    441     10.0.21.186        0000-5e00-532b    DHCP     517727   Used             
+    442     10.0.21.187        0000-5e00-5316    DHCP     602543   Used             
+    445     10.0.21.190        0000-5e00-532a    DHCP     600930   Used             
+    448     10.0.21.193        0000-5e00-5311    DHCP     593630   Used             
+    454     10.0.21.199        0000-5e00-530c    DHCP     519416   Used             
+    458     10.0.21.203        0000-5e00-533d    DHCP     525123   Used             
+    459     10.0.21.204        0000-5e00-5330    DHCP     603041   Used             
+    465     10.0.21.210        0000-5e00-5343    DHCP     602305   Used             
+    466     10.0.21.211        0000-5e00-5340    DHCP     597484   Used             
+    472     10.0.21.217        0000-5e00-5313    DHCP     604644   Used             
+    482     10.0.21.227        0000-5e00-5308    DHCP     525924   Used             
+    483     10.0.21.228        0000-5e00-5303    DHCP     604599   Used             
+    486     10.0.21.231        0000-5e00-5323    DHCP     603680   Used             
+    495     10.0.21.240        0000-5e00-5331    DHCP     518279   Used             
+    499     10.0.21.244        0000-5e00-5335    DHCP     589711   Used             
+ -------------------------------------------------------------------------------------
+<AR730_XXXXXXXXXXXXXXXXXXXX>display dhcp static user-bind all
+Info: The number of static bind-table is zero.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include http
+portal local-server http port 8080
+authentication https-redirect enable
+ssl policy https1 type client
+ local-user admin service-type terminal ssh http
+ local-user accampus@domain_accampus service-type ssh http
+ http secure-server ssl-policy default_policy
+ http server enable
+ http secure-server enable
+ http server permit interface Vlanif1
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]http ?
+  acl            Set access control list for this user
+  client         HTTP client
+  get            HTTP service test
+  secure-client  HTTPS Client
+  secure-server  <Group> secure-server command group
+  server         HTTP Server
+  server-source  Bind server of source IP or interface
+  timeout        Timeout
+[AR730_XXXXXXXXXXXXXXXXXXXX]http 
+                                 ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]http acl ?
+  INTEGER<2000-2999>  Apply basic acl
+[AR730_XXXXXXXXXXXXXXXXXXXX]http acl 
+                                     ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]arp static ?
+  IP_ADDR<X.X.X.X>  Ip address
+[AR730_XXXXXXXXXXXXXXXXXXXX]arp static 
+                                       ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]arp static 10.0.20.250 aabb-ccdd-eeff ?
+  vid           Specify VLAN ID
+  vni           VXLAN network identifier
+  vpn-instance  Specify VPN-Instance
+  <cr>          Please press ENTER to execute command 
+[AR730_XXXXXXXXXXXXXXXXXXXX]arp static 10.0.20.250 aabb-ccdd-eeff 
+[AR730_XXXXXXXXXXXXXXXXXXXX]arp static 10.0.20.250 aabb-ccdd-eeff vid 20 ?
+  cevid      Specify CE VLAN ID
+  interface  Specify interface
+[AR730_XXXXXXXXXXXXXXXXXXXX]arp static 10.0.20.250 aabb-ccdd-eeff vid 20 
+                                                                         ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]interface Vlanif20
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]dhcp server static-bind ?
+  ip-address  IP address for static bind
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]dhcp server static-bind 
+                                                             ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]dhcp server static-bind ip-address 10.0.20.250 ?
+  mac-address  MAC address for static bind
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]dhcp server static-bind ip-address 10.0.20.250 
+    ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]dhcp server static-bind ip-address 10.0.20.250 mac-address aabb-ccdd-eeff ?
+  description  Description
+  <cr>         Please press ENTER to execute command 
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]dhcp server static-bind ip-address 10.0.20.250 mac-address aabb-ccdd-eeff 
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]acl number 2999
+[AR730_XXXXXXXXXXXXXXXXXXXX-acl-basic-2999]rule ?
+  INTEGER<0-4294967294>  ID of ACL rule
+  deny                   Specify matched packet deny
+  permit                 Specify matched packet permit
+[AR730_XXXXXXXXXXXXXXXXXXXX-acl-basic-2999]rule 
+                                                ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-acl-basic-2999]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# App report when binding a MAC that still holds a lease on another address
+==============================================================================
+فشلت خطوة «ربط DHCP»، ولم يكتمل التنفيذ.
+
+رد الراوتر:
+Error: This MAC address uses another IP address in the ip pool.
+
+==============================================================================
+# App session log (ar730_session.log) - management device add, save, and a rejected undo
+# In this log each command is echoed twice on the ">>>" line (the log writes the command, then the router echo).
+==============================================================================
+>>> display user-groupdisplay user-group
+ -------------------------------------------------------------------------------
+ ID    Group name                               User-num
+ -------------------------------------------------------------------------------
+ 0     grp_managers                             22      
+ 1     grp_staff                                1       
+ -------------------------------------------------------------------------------
+ Total 2
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> display local-userdisplay local-user
+  ----------------------------------------------------------------------------
+  User-name                      State  AuthMask  AdminLevel  
+  ----------------------------------------------------------------------------
+  admin                          A      MSH       15         
+  internet                       A      W         0          
+  testportal                     A      W         0          
+  00005e00530a                   A      X         0          
+  00005e005311                   A      X         0          
+  00005e005317                   A      X         0          
+  00005e005335                   A      X         0          
+  00005e005333                   A      X         0          
+  00005e00530b                   A      X         0          
+  00005e005322                   A      X         0          
+  00005e005329                   A      X         0          
+  00005e00531e                   A      X         0          
+  00005e00531d                   A      X         0          
+  00005e005310                   A      X         0          
+  00005e00533d                   A      X         0          
+  00005e005342                   A      X         0          
+  00005e005338                   A      X         0          
+  00005e005309                   A      X         0          
+  00005e005334                   A      X         0          
+  00005e005328                   A      X         0          
+  00005e005332                   A      X         0          
+  00005e005316                   A      X         0          
+  00005e005336                   A      X         0          
+  00005e005313                   A      X         0          
+  00005e005321                   A      X         0          
+  00005e005323                   A      X         0          
+  00005e005341                   A      X         0          
+  00005e005326                   A      X         0          
+  00005e005302                   A      X         0          
+  00005e005301                   A      X         0          
+  00005e005340                   A      X         0          
+  00005e00531a                   A      X         0          
+  00005e005319                   A      X         0          
+  00005e005303                   A      X         0          
+  00005e00532f                   A      X         0          
+  00005e005304                   A      X         0          
+  00005e005305                   A      X         0          
+  accampus@domain_...            A      SH        15         
+  ----------------------------------------------------------------------------
+  Total 38 user(s)
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> display access-userdisplay access-user
+ ------------------------------------------------------------------------------------------------------
+ UserID  Username               IP address                               MAC            Status
+ ------------------------------------------------------------------------------------------------------
+ 26      admin                  10.0.1.50                                -              Success         
+ 1128    00005e005338           10.0.20.53                               0000-5e00-5338 Success         
+ 1148    00005e00531e           10.0.21.8                                0000-5e00-531e Success         
+ 1150    00005e005335           10.0.21.244                              0000-5e00-5335 Success         
+ 1168    00005e005311           10.0.21.193                              0000-5e00-5311 Success         
+ 1182    00005e005340           10.0.21.211                              0000-5e00-5340 Success         
+ 1198    00005e005310           10.0.20.213                              0000-5e00-5310 Success         
+ 1199    00005e005304           10.0.20.207                              0000-5e00-5304 Success         
+ 1204    00005e005336           10.0.21.185                              0000-5e00-5336 Success         
+ 1209    00005e00530b           10.0.20.165                              0000-5e00-530b Success         
+ 1215    00005e005332           10.0.21.95                               0000-5e00-5332 Success         
+ 1217    00005e005328           10.0.20.18                               0000-5e00-5328 Success         
+ 1220    00005e005323           10.0.21.231                              0000-5e00-5323 Success         
+ 1223    00005e005319           10.0.20.232                              0000-5e00-5319 Success         
+ 1230    00005e005334           10.0.21.120                              0000-5e00-5334 Success         
+ 1231    00005e005309           10.0.21.111                              0000-5e00-5309 Success         
+ 1234    00005e00531a           10.0.21.80                               0000-5e00-531a Success         
+ 1244    00005e00533d           10.0.21.203                              0000-5e00-533d Success         
+ 1245    00005e00531d           10.0.20.201                              0000-5e00-531d Success         
+ 1246    00005e00530a           10.0.21.165                              0000-5e00-530a Success         
+ 1247    00005e00532f           10.0.21.70                               0000-5e00-532f Success         
+ 1248    00005e005333           10.0.20.206                              0000-5e00-5333 Success         
+ 1249    00005e005305           10.0.21.152                              0000-5e00-5305 Success         
+ ------------------------------------------------------------------------------------------------------
+ Total: 23, printed: 23
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> display acl alldisplay acl all
+ Total quantity of nonempty ACL number is 10 
+
+Basic ACL 2999, 3 rules
+MGMT-ACCESS
+Acl's step is 5
+ rule 5 permit source 10.0.1.0 0.0.0.255 (48 matches)
+ rule 10 permit source 10.0.10.0 0.0.0.255 
+ rule 3000 deny (180 matches)
+
+Advanced ACL 3010, 4 rules
+MANAGERS
+Acl's step is 5
+ rule 3 permit ip destination 10.0.255.1 0 
+ rule 5 permit ip destination 10.0.70.10 0 
+ rule 10 deny ip destination 10.0.70.0 0.0.1.255 
+ rule 3000 permit ip 
+
+Advanced ACL 3020, 44 rules
+STAFF
+Acl's step is 5
+ rule 1 permit udp source-port eq bootpc destination-port eq bootps 
+ rule 5 permit udp destination 1.1.1.1 0 destination-port eq dns 
+ rule 6 permit udp destination 8.8.8.8 0 destination-port eq dns 
+ rule 7 permit tcp destination 1.1.1.1 0 destination-port eq domain 
+ rule 8 permit tcp destination 8.8.8.8 0 destination-port eq domain 
+ rule 20 permit udp destination 10.0.30.10 0 destination-port eq 5060 
+ rule 21 permit tcp destination 10.0.30.10 0 destination-port eq 5060 
+ rule 22 permit tcp destination 10.0.30.10 0 destination-port eq 5061 
+ rule 23 permit tcp destination 10.0.30.10 0 destination-port eq 443 
+ rule 24 permit udp destination 10.0.30.10 0 destination-port range 10000 20000 
+ rule 30 permit tcp destination 10.0.40.0 0.0.0.255 destination-port eq 9100 
+ rule 31 permit tcp destination 10.0.40.0 0.0.0.255 destination-port eq 631 
+ rule 32 permit tcp destination 10.0.40.0 0.0.0.255 destination-port eq lpd 
+ rule 33 permit udp destination 10.0.40.0 0.0.0.255 destination-port eq snmp 
+ rule 40 permit ip source 10.0.20.50 0 destination 10.0.70.10 0 
+ rule 45 permit ip destination 10.0.255.1 0 
+ rule 50 deny ip destination 10.0.0.0 0.0.255.255 
+ rule 60 permit tcp destination 17.0.0.0 0.255.255.255 destination-port eq 5223 
+ rule 61 permit tcp destination-port eq 5228 
+ rule 62 permit tcp destination-port eq 5229 
+ rule 63 permit tcp destination-port eq 5230 
+ rule 100 permit ip destination 31.13.24.0 0.0.7.255 
+ rule 101 permit ip destination 31.13.64.0 0.0.63.255 
+ rule 102 permit ip destination 45.64.40.0 0.0.3.255 
+ rule 103 permit ip destination 57.141.0.0 0.0.255.255 
+ rule 104 permit ip destination 57.144.0.0 0.3.255.255 
+ rule 105 permit ip destination 66.220.144.0 0.0.15.255 
+ rule 106 permit ip destination 69.63.176.0 0.0.15.255 
+ rule 107 permit ip destination 69.171.224.0 0.0.31.255 
+ rule 108 permit ip destination 74.119.76.0 0.0.3.255 
+ rule 109 permit ip destination 102.132.96.0 0.0.31.255 
+ rule 110 permit ip destination 102.221.188.0 0.0.3.255 
+ rule 111 permit ip destination 103.4.96.0 0.0.3.255 
+ rule 112 permit ip destination 129.134.0.0 0.0.255.255 
+ rule 113 permit ip destination 157.240.0.0 0.0.255.255 
+ rule 114 permit ip destination 163.70.128.0 0.0.127.255 
+ rule 115 permit ip destination 163.77.132.0 0.0.1.255 
+ rule 116 permit ip destination 163.77.136.0 0.0.1.255 
+ rule 117 permit ip destination 173.252.64.0 0.0.63.255 
+ rule 118 permit ip destination 179.60.192.0 0.0.3.255 
+ rule 119 permit ip destination 185.60.216.0 0.0.3.255 
+ rule 120 permit ip destination 185.89.216.0 0.0.3.255 
+ rule 121 permit ip destination 204.15.20.0 0.0.3.255 
+ rule 3000 deny ip 
+
+Advanced ACL 3030, 5 rules
+VOICE
+Acl's step is 5
+ rule 5 permit ip source 10.0.30.10 0 
+ rule 10 permit udp destination-port eq ntp 
+ rule 15 permit udp destination-port eq dns 
+ rule 20 deny ip destination 10.0.0.0 0.0.255.255 
+ rule 3000 deny ip 
+
+Advanced ACL 3040, 2 rules
+PRINTERS
+Acl's step is 5
+ rule 5 permit udp destination-port eq ntp 
+ rule 3000 deny ip 
+
+Advanced ACL 3050, 4 rules
+GUEST
+Acl's step is 5
+ rule 5 permit udp destination 1.1.1.1 0 destination-port eq dns 
+ rule 6 permit udp destination 8.8.8.8 0 destination-port eq dns 
+ rule 10 deny ip destination 10.0.0.0 0.0.255.255 
+ rule 3000 permit ip 
+
+Advanced ACL 3060, 2 rules
+APS
+Acl's step is 5
+ rule 10 deny ip destination 10.0.0.0 0.0.255.255 
+ rule 3000 permit ip 
+
+Advanced ACL 3070, 3 rules
+CAMERAS
+Acl's step is 5
+ rule 5 permit ip source 10.0.70.10 0 
+ rule 10 permit udp destination-port eq ntp 
+ rule 3000 deny ip 
+
+Advanced ACL 3990, 1 rule
+LAN-FOR-NAT
+Acl's step is 5
+ rule 5 permit ip source 10.0.0.0 0.0.255.255 (1134497 matches)
+
+Advanced ACL GigabitEthernet0/0/9 3999, 1 rule
+Acl's step is 5
+ rule 5 permit ip (1219595 matches)
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+... (display ip pool interface Vlanif20 used, excerpt: a static binding row)
+    230     10.0.20.231        0000-5e00-5337    DHCP     515601   Used             
+    231     10.0.20.232        0000-5e00-5319    DHCP     600408   Used             
+    249     10.0.20.250        aabb-ccdd-eeff    DHCP          -   Static-bind      
+    256       10.0.21.1        0000-5e00-533a    DHCP     523776   Used             
+...
+>>> returnreturn
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> reset ip pool interface Vlanif20 10.0.20.42reset ip pool interface Vlanif20 10.0.20.42
+Warning: If the IP addresses that are being used are reclaimed, may influence normal user in the network. Are you sure to :Y
+Y
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> system-viewsystem-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> interface Vlanif20interface Vlanif20
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]
+>>> dhcp server static-bind ip-address 10.0.21.254 mac-address 0000-5e00-5341 description AdminPC1dhcp server static-bind ip-address 10.0.21.254 mac-address 0000-5e00-5341 description AdminPC1
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]
+>>> quitquit
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> arp static 10.0.21.254 0000-5e00-5341 vid 20 interface GigabitEthernet0/0/2arp static 10.0.21.254 0000-5e00-5341 vid 20 interface GigabitEthernet0/0/2
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> acl number 2999acl number 2999
+[AR730_XXXXXXXXXXXXXXXXXXXX-acl-basic-2999]
+>>> rule 100 permit source 10.0.21.254 0rule 100 permit source 10.0.21.254 0
+[AR730_XXXXXXXXXXXXXXXXXXXX-acl-basic-2999]
+>>> quitquit
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> http acl 2999http acl 2999
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> http server permit interface Vlanif1 Vlanif20http server permit interface Vlanif1 Vlanif20
+Info: Successed in setting web permit interface.
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> returnreturn
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> display current-configuration | include httpdisplay current-configuration | include http
+portal local-server http port 8080
+authentication https-redirect enable
+ssl policy https1 type client
+ local-user admin service-type terminal ssh http
+ local-user accampus@domain_accampus service-type ssh http
+ http acl 2999
+ http secure-server ssl-policy default_policy
+ http server enable
+ http secure-server enable
+ http server permit interface Vlanif1 Vlanif20
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+...
+ dhcp server static-bind ip-address 10.0.21.254 mac-address 0000-5e00-5341 description AdminPC1
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> display current-configuration | include arp staticdisplay current-configuration | include arp static
+arp static 10.0.21.254 0000-5e00-5341 vid 20 interface GigabitEthernet0/0/2
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> savesave
+ Warning: The current configuration will be written to the device. 
+ Are you sure to :Y
+Y
+  It will take several minutes to save configuration file, please wait..............
+  Configuration file had been saved successfully
+  Note: The configuration file will take effect after being activated
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+>>> system-viewsystem-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> interface Vlanif20interface Vlanif20
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]
+>>> undo dhcp server static-bind ip-address 10.0.20.250 mac-address aabb-ccdd-eeffundo dhcp server static-bind ip-address 10.0.20.250 mac-address aabb-ccdd-eeff
+                                                                                         ^
+Error:Too many parameters found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-Vlanif20]
+>>> quitquit
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+>>> returnreturn
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# http acl re-applied (portal disappears again) and web permit list replaced
+# captured 2026-09-15
+==============================================================================
+[AR730_XXXXXXXXXXXXXXXXXXXX]http acl 2999
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]http server permit interface Vlanif1
+Info: Successed in setting web permit interface.
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include http
+portal local-server http port 8080
+authentication https-redirect enable
+ssl policy https1 type client
+ local-user admin service-type terminal ssh http
+ local-user accampus@domain_accampus service-type ssh http
+ http acl 2999
+ http secure-server ssl-policy default_policy
+ http server enable
+ http secure-server enable
+ http server permit interface Vlanif1
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# final: undo http acl (silent), SSH from the management device 10.0.21.254, save
+# captured 2026-09-15 (first password attempt was mistyped)
+==============================================================================
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo http acl
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include http
+portal local-server http port 8080
+authentication https-redirect enable
+ssl policy https1 type client
+ local-user admin service-type terminal ssh http
+ local-user accampus@domain_accampus service-type ssh http
+ http secure-server ssl-policy default_policy
+ http server enable
+ http secure-server enable
+ http server permit interface Vlanif1
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>quit
+
+  Info:Configuration console exit, please retry to log on
+Connection to 10.0.20.1 closed.
+user@mac ~ % ssh admin@10.0.20.1
+admin@10.0.20.1's password: 
+
+Error: Authentication failed.
+Permission denied, please try again.
+admin@10.0.20.1's password: 
+
+  -----------------------------------------------------------------------------     
+  User last login information:     
+  -----------------------------------------------------------------------------
+  Access Type: SSH      
+  IP-Address : 10.0.21.254     
+  Time       : 2026-09-15 17:41:29+02:00     
+  -----------------------------------------------------------------------------
+<AR730_XXXXXXXXXXXXXXXXXXXX>save
+ Warning: The current configuration will be written to the device. 
+ Are you sure to continue?[Y/N]:Y
+  It will take several minutes to save configuration file, please wait..............
+  Configuration file had been saved successfully
+  Note: The configuration file will take effect after being activated
+<AR730_XXXXXXXXXXXXXXXXXXXX>

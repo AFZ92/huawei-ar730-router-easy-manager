@@ -1,0 +1,2602 @@
+# Real AR730 terminal captures (VRP V300R024C00SPC100)
+#
+# Pasted verbatim from the router's SSH terminal during development, then
+# sanitised: the hostname serial, device MAC addresses (mapped consistently to
+# the 00-00-5E-00-53-xx documentation range), password ciphers and plaintext
+# passwords are replaced. Column widths and caret (^) positions are preserved.
+# Typos such as "isplay" are real: pasting after long output drops the first
+# character. Use these files as the reference when changing the simulators.
+#
+==============================================================================
+# interfaces, default routes, route-static
+# captured 2026-09-14 14:18:11 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip interface brief
+*down: administratively down
+^down: standby
+(l): loopback
+(s): spoofing
+(E): E-Trunk down
+The number of interface that is UP in Physical is 14
+The number of interface that is DOWN in Physical is 3
+The number of interface that is UP in Protocol is 13
+The number of interface that is DOWN in Protocol is 4
+
+Interface                         IP Address/Mask      Physical   Protocol  
+GigabitEthernet0/0/8              192.168.2.250/24     down       down      
+GigabitEthernet0/0/9              192.168.1.250/24     up         up        
+GigabitEthernet0/0/10             192.168.3.250/24     down       down      
+GigabitEthernet0/0/11             192.168.233.233/30   up         up        
+LoopBack1                         10.0.255.1/32        up         up(s)     
+NULL0                             unassigned           up         up(s)     
+Vlanif1                           10.0.1.1/24          up         up        
+Vlanif10                          10.0.10.1/24         up         up        
+Vlanif20                          10.0.20.1/23         up         up        
+Vlanif103                         192.168.4.250/24     up         up        
+Vlanif104                         192.168.5.250/24     down       down      
+XGigabitEthernet0/0/0             unassigned           up         down      
+XGigabitEthernet0/0/0.30          10.0.30.1/24         up         up        
+XGigabitEthernet0/0/0.40          10.0.40.1/24         up         up        
+XGigabitEthernet0/0/0.50          10.0.50.1/24         up         up        
+XGigabitEthernet0/0/0.60          10.0.60.1/24         up         up        
+XGigabitEthernet0/0/0.70          10.0.70.1/23         up         up        
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display interface brief
+PHY: Physical
+*down: administratively down
+(l): loopback
+(s): spoofing
+(b): BFD down
+^down: standby
+(e): ETHOAM down
+(v): VirtualPort
+InUti/OutUti: input utility/output utility
+Interface                   PHY   Protocol  InUti OutUti   inErrors  outErrors
+GigabitEthernet0/0/0        down  down         0%     0%          0          0
+GigabitEthernet0/0/1        up    up        0.03%  0.08%        149          0
+GigabitEthernet0/0/2        up    up        0.97%  1.09%          0          0
+GigabitEthernet0/0/3        up    up        1.09%  0.96%          0          0
+GigabitEthernet0/0/4        down  down         0%     0%          0          0
+GigabitEthernet0/0/5        down  down         0%     0%          0          0
+GigabitEthernet0/0/6        down  down         0%     0%          0          0
+GigabitEthernet0/0/7        down  down         0%     0%          0          0
+GigabitEthernet0/0/8        down  down         0%     0%          0          0
+GigabitEthernet0/0/9        up    up        0.01%  0.01%        230          0
+GigabitEthernet0/0/10       down  down         0%     0%          0          0
+GigabitEthernet0/0/11(v)    up    up           0%  0.01%          0          0
+LoopBack1                   up    up(s)        --     --          0          0
+NULL0                       up    up(s)        --     --          0          0
+Vlanif1                     up    up           --     --          0          0
+Vlanif10                    up    up           --     --          0          0
+Vlanif20                    up    up           --     --          0          0
+Vlanif103                   up    up           --     --          0          0
+Vlanif104                   down  down         --     --          0          0
+XGigabitEthernet0/0/0       up    down      0.01%  0.01%          0          0
+XGigabitEthernet0/0/0.30    up    up           0%     0%          0          0
+XGigabitEthernet0/0/0.40    up    up           0%     0%          0          0
+XGigabitEthernet0/0/0.50    up    up           0%     0%          0          0
+XGigabitEthernet0/0/0.60    up    up           0%     0%          0          0
+XGigabitEthernet0/0/0.70    up    up           0%     0%          0          0
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 6
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 03h26m55s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h04m12s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d07h23m53s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d07h23m53s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d07h23m53s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 0.0.0.0           Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h04m12s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x0              
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include ip route-static
+ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/8 dhcp
+ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/10 dhcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin wan4
+ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin wan1
+ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin wan2
+ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin wan3
+ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin wan5
+ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/9 dhcp
+ip route-static 1.0.0.1 255.255.255.255 192.168.5.1
+ip route-static 1.1.1.1 255.255.255.255 192.168.2.1
+ip route-static 8.8.4.4 255.255.255.255 192.168.4.1
+ip route-static 8.8.8.8 255.255.255.255 192.168.1.1
+ip route-static 9.9.9.9 255.255.255.255 192.168.3.1
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.4.1 public
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.1.1 public
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# NQA results, NQA config, VLAN, interface counters, ping help, cpu, memory
+# captured 2026-09-14 14:23:11 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin wan1
+ 
+ NQA entry(admin, wan1) :testflag is active ,testtype is icmp 
+  1 . Test 44699 result   The test is finished
+   Send operation times: 2              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:2         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.1.1.1                                        
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+  2 . Test 44700 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.1.1.1                                        
+   Min/Max/Average Completion Time: 260/390/325                          
+   Sum/Square-Sum  Completion Time: 650/219700                           
+   Last Good Probe Time: 2026-09-14 16:20:29.5                           
+   Lost packet ratio: 0 %                                                
+  3 . Test 44701 result   The test is finished
+   Send operation times: 2              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:2         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.1.1.1                                        
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+  4 . Test 44702 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.1.1.1                                        
+   Min/Max/Average Completion Time: 530/660/595                          
+   Sum/Square-Sum  Completion Time: 1190/716500                          
+   Last Good Probe Time: 2026-09-14 16:20:50.6                           
+   Lost packet ratio: 0 %                                                
+  5 . Test 44703 result   The test is finished
+   Send operation times: 2              Receive response times: 1          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:1         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.1.1.1                                        
+   Min/Max/Average Completion Time: 1030/1030/1030                       
+   Sum/Square-Sum  Completion Time: 1030/1060900                         
+   Last Good Probe Time: 2026-09-14 16:20:57.4                           
+   Lost packet ratio: 50 %                                               
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin wan4
+ 
+ NQA entry(admin, wan4) :testflag is active ,testtype is icmp 
+  1 . Test 44699 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 310/320/315                          
+   Sum/Square-Sum  Completion Time: 630/198500                           
+   Last Good Probe Time: 2026-09-14 16:20:19.0                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 44700 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 250/370/310                          
+   Sum/Square-Sum  Completion Time: 620/199400                           
+   Last Good Probe Time: 2026-09-14 16:20:29.5                           
+   Lost packet ratio: 0 %                                                
+  3 . Test 44701 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 220/340/280                          
+   Sum/Square-Sum  Completion Time: 560/164000                           
+   Last Good Probe Time: 2026-09-14 16:20:39.9                           
+   Lost packet ratio: 0 %                                                
+  4 . Test 44702 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 440/510/475                          
+   Sum/Square-Sum  Completion Time: 950/453700                           
+   Last Good Probe Time: 2026-09-14 16:20:50.4                           
+   Lost packet ratio: 0 %                                                
+  5 . Test 44703 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 170/650/410                          
+   Sum/Square-Sum  Completion Time: 820/451400                           
+   Last Good Probe Time: 2026-09-14 16:21:01.0                           
+   Lost packet ratio: 0 %                                                
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin wan2
+ 
+ NQA entry(admin, wan2) :testflag is active ,testtype is icmp 
+  1 . Test 44699 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.0.0.1                                        
+   Min/Max/Average Completion Time: 330/340/335                          
+   Sum/Square-Sum  Completion Time: 670/224500                           
+   Last Good Probe Time: 2026-09-14 16:20:19.0                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 44700 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.0.0.1                                        
+   Min/Max/Average Completion Time: 260/380/320                          
+   Sum/Square-Sum  Completion Time: 640/212000                           
+   Last Good Probe Time: 2026-09-14 16:20:29.5                           
+   Lost packet ratio: 0 %                                                
+  3 . Test 44701 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.0.0.1                                        
+   Min/Max/Average Completion Time: 240/350/295                          
+   Sum/Square-Sum  Completion Time: 590/180100                           
+   Last Good Probe Time: 2026-09-14 16:20:39.9                           
+   Lost packet ratio: 0 %                                                
+  4 . Test 44702 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.0.0.1                                        
+   Min/Max/Average Completion Time: 530/660/595                          
+   Sum/Square-Sum  Completion Time: 1190/716500                          
+   Last Good Probe Time: 2026-09-14 16:20:50.6                           
+   Lost packet ratio: 0 %                                                
+  5 . Test 44703 result   The test is finished
+   Send operation times: 2              Receive response times: 2          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:1.0.0.1                                        
+   Min/Max/Average Completion Time: 180/670/425                          
+   Sum/Square-Sum  Completion Time: 850/481300                           
+   Last Good Probe Time: 2026-09-14 16:21:01.0                           
+   Lost packet ratio: 0 %                                                
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration nqa
+[V300R024C00SPC100]
+#
+nqa test-instance admin wan1
+ test-type icmp
+ destination-address ipv4 1.1.1.1
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan2
+ test-type icmp
+ destination-address ipv4 1.0.0.1
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan3
+ test-type icmp
+ destination-address ipv4 8.8.8.8
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan4
+ test-type icmp
+ destination-address ipv4 8.8.4.4
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan5
+ test-type icmp
+ destination-address ipv4 1.0.0.1
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+#
+return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display vlan 103
+* : management-vlan
+---------------------
+VLAN ID Type         Status   MAC Learning Broadcast/Multicast/Unicast Property 
+--------------------------------------------------------------------------------
+103     common       enable   enable       forward   forward   forward default  
+-------------------
+Untagged      Port: GigabitEthernet0/0/3        
+-------------------
+Active Untag  Port: GigabitEthernet0/0/3        
+---------------------
+Interface                   Physical 
+GigabitEthernet0/0/3        UP      
+                 
+<AR730_XXXXXXXXXXXXXXXXXXXX>display vlan 104
+* : management-vlan
+---------------------
+VLAN ID Type         Status   MAC Learning Broadcast/Multicast/Unicast Property 
+--------------------------------------------------------------------------------
+104     common       enable   enable       forward   forward   forward default  
+-------------------
+Untagged      Port: GigabitEthernet0/0/4        
+-------------------
+Active Untag  Port: GigabitEthernet0/0/4        
+---------------------
+Interface                   Physical 
+GigabitEthernet0/0/4        DOWN    
+                 
+<AR730_XXXXXXXXXXXXXXXXXXXX>display interface GigabitEthernet0/0/9
+GigabitEthernet0/0/9 current state : UP
+Line protocol current state : UP
+Last line protocol up time : 2026-09-14 16:13:08 UTC+02:00
+Description:WAN1
+Route Port,The Maximum Transmit Unit is 1500
+Internet Address is 192.168.1.250/24
+IP Sending Frames' Format is PKTFMT_ETHNT_2, Hardware address is 0000-5e00-5306
+Last physical up time   : 2026-09-14 16:13:08 UTC+02:00
+Last physical down time : 2026-09-14 16:12:39 UTC+02:00
+Current system time: 2026-09-14 16:21:39+02:00
+Port Mode: AUTO COPPER
+Speed :  100,  Loopback: NONE
+Duplex: FULL,  Negotiation: ENABLE
+Mdi   : AUTO,  Clock   : -
+Last 300 seconds input rate 5256 bits/sec, 3 packets/sec
+Last 300 seconds output rate 29936 bits/sec, 7 packets/sec
+Input peak rate 274096 bits/sec,Record time: 2026-09-10 07:56:01
+Output peak rate 580616 bits/sec,Record time: 2026-09-14 12:49:48
+
+Input:  2065856 packets, 262452113 bytes
+  Unicast:            1830887,  Multicast:              232120
+  Broadcast:             2849,  Jumbo:                       -
+  Discard:                  0,  Total Error:               230
+
+  CRC:                    115,  Giants:                      0
+  Jabbers:                  0,  Throttles:                   0
+  Runts:                    0,  Symbols:                     0
+  Ignoreds:                 0,  Frames:                      0
+
+Output:  4755263 packets, 2067708560 bytes
+  Unicast:            4716787,  Multicast:               15108
+  Broadcast:            23368,  Jumbo:                       -
+  Discard:                  0,  Total Error:                 0
+
+  Collisions:               0,  ExcessiveCollisions:         0
+  Late Collisions:          0,  Deferreds:                   0
+
+    Input bandwidth utilization threshold : 100.00%
+    Output bandwidth utilization threshold: 100.00%
+    Input bandwidth utilization  : 0.01%
+    Output bandwidth utilization : 0.03%
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display interface Vlanif103
+Vlanif103 current state : UP
+Line protocol current state : UP
+Last line protocol up time : 2026-09-14 12:50:25 UTC+02:00
+Description:WAN4
+Route Port,The Maximum Transmit Unit is 1500
+Internet Address is 192.168.4.250/24
+IP Sending Frames' Format is PKTFMT_ETHNT_2, Hardware address is 0000-5e00-5301
+Current system time: 2026-09-14 16:21:41+02:00
+    Input bandwidth utilization  : --
+    Output bandwidth utilization : --
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping ?
+  STRING<1-255>  IP address or hostname of a remote system
+  -a             Select source IP address, the default is the IP address of the 
+                 output interface
+  -c             Specify the number of echo requests to be sent, the default is 
+                 5
+  -d             Specify the SO_DEBUG option on the socket being used
+  -f             Set Don't Fragment flag in packet (IPv4-only)
+  -h             Specify TTL value for echo requests to be sent, the default is 
+                 255
+  -i             Select the interface sending packets
+  -m             Time in milliseconds to wait for sending next packet, the      
+                 default is 500ms
+  -n             Numeric output only. No attempt will be made to lookup host    
+                 addresses for symbolic names
+  -name          Display the host name of the destination address
+  -nexthop       Nexthop information
+  -p             No more than 8 (pad) hexadecimal characters to fill out the    
+                 sent packet. For example -p f2 will fill the sent packet with f
+                 and 2 repeatedly
+  -q             Quiet output. Nothing is displayed except the summary lines at 
+                 startup time and when finished
+  -r             Record route. Includes the RECORD_ROUTE option in the          
+                 ECHO_REQUEST packet and displays the route
+  -range         Specify the length range of data to be sent (in bytes), the    
+                 default is <56-9600>, and the step is 1
+  -s             Specify the number of data bytes to be sent, the default is    
+                 56bytes
+  -system-time   Display the sending time of echo request packets
+  -t             Timeout in milliseconds to wait for each reply, the default is 
+                 2000ms
+  -tos           Specify TOS value for echo requests to be sent, the default is 
+                 0
+  -v             Verbose output. ICMP packets other than ECHO_RESPONSE those are
+                 received are listed
+  -vpn-instance  Specify VPN-Instance of MPLS VPN
+  ignore-mtu     Send packets without checking the interface MTU
+  ip             IP Protocol
+  ipv6           IPv6 protocol
+  lsp            LSP Ping
+  mac-8021ag     Send MAC ping message
+  multicast      Multicast ping
+  vc             PWE3 Ping
+  vpls           VPLS Ping
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping 
+                                 ^
+Error:Incomplete command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -c 20 192.168.1.1
+  PING 192.168.1.1: 56  data bytes, press CTRL_C to break
+    Reply from 192.168.1.1: bytes=56 Sequence=1 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=2 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=3 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=4 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=5 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=6 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=7 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=8 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=9 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=10 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=11 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=12 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=13 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=14 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=15 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=16 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=17 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=18 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=19 ttl=64 time=1 ms
+    Reply from 192.168.1.1: bytes=56 Sequence=20 ttl=64 time=1 ms
+
+  --- 192.168.1.1 ping statistics ---
+    20 packet(s) transmitted
+    20 packet(s) received
+    0.00% packet loss
+    round-trip min/avg/max = 1/1/1 ms
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display cpu-usage
+CPU   Usage Stat. Cycle: 10 (Second)
+CPU   Usage Stat. Time : 2026-09-14  16:22:25 
+Control Plane
+    CPU Usage: 19.7%   Max: 36.8% 
+    User: 11.5%   System:  8.1%   SoftIrq:  0.0%   HardIrq:  0.0%   Idle: 80.3%  
+    CPU utilization for ten seconds: 19.7%  one minute:  20.0%  five minutes:  20.0% .
+Data    Plane
+    CPU Usage:  0.0%   Max:  5.1% 
+    CPU utilization for ten seconds:  0.0%  one minute:   0.0%  five minutes:   0.0% .
+
+PID   ProcessName         CPU%     CoreIndex      Runtime     State
+1786  cap                 0.0%      CPU1           98601217    S
+1786  cap                 0.1%      CPU2           98601217    S
+2364  nge.out             0.0%      CPU0           48964163    S
+1799  main_task          18.2%      CPU0           16885862    S
+2047  kni_single          1.2%      CPU0           1168537     R
+1790  fwm-irc             0.2%      CPU0           247692      S
+2338  redis-server        0.0%      CPU0           78399       S
+1754  monitor             0.0%      CPU0           48512       S
+11    rcu_preempt         0.0%      CPU0           30592       I
+1     systemd             0.0%      CPU0           9829        S
+2363  confd               0.0%      CPU0           5158        S
+10    ksoftirqd/0         0.0%      CPU0           4663        S
+1503  rsyslogd            0.0%      CPU0           1152        S
+268   kcompactd0          0.0%      CPU0           884         S
+1119  kworker/0:4-events  0.0%      CPU0           860         I
+890   tcam_scan           0.0%      CPU0           395         S
+1334  int_mgmt-deamon     0.0%      CPU0           184         S
+12    migration/0         0.0%      CPU0           112         S
+13110 kworker/u8:0-events_unbound  0.0%      CPU0           101         I
+13111 kworker/u8:1-events_unbound  0.0%      CPU0           82          I
+25    migration/3         0.0%      CPU3           65          S
+15    migration/1         0.0%      CPU1           64          S
+20    migration/2         0.0%      CPU2           61          S
+22634 sshd                0.0%      CPU0           57          S
+1434  ubi_bgt2d           0.0%      CPU0           53          S
+1437  ubifs_bgt2_0        0.0%      CPU0           36          S
+31    swtd                0.0%      CPU0           32          S
+22636 netconf-agent       0.0%      CPU0           26          S
+264   khungtaskd          0.0%      CPU0           12          S
+1448  loop0               0.0%      CPU0           12          S
+1150  kworker/0:5-events  0.0%      CPU0           6           I
+301   kworker/0:1H-kblockd  0.0%      CPU0           3           I
+1456  loop13              0.0%      CPU0           1           S
+2438  loop4               0.0%      CPU0           1           S
+2     kthreadd            0.0%      CPU0           0           S
+3     rcu_gp              0.0%      CPU0           0           I
+4     rcu_par_gp          0.0%      CPU0           0           I
+6     kworker/0:0H-events_highpri  0.0%      CPU0           0           I
+8     mm_percpu_wq        0.0%      CPU0           0           I
+9     rcu_tasks_kthre     0.0%      CPU0           0           S
+13    cpuhp/0             0.0%      CPU0           0           S
+14    cpuhp/1             0.0%      CPU1           0           S
+16    ksoftirqd/1         0.0%      CPU1           0           S
+17    kworker/1:0-events  0.0%      CPU1           0           I
+18    kworker/1:0H        0.0%      CPU1           0           I
+19    cpuhp/2             0.0%      CPU2           0           S
+21    ksoftirqd/2         0.0%      CPU2           0           S
+22    kworker/2:0-events  0.0%      CPU2           0           I
+23    kworker/2:0H        0.0%      CPU2           0           I
+24    cpuhp/3             0.0%      CPU3           0           S
+26    ksoftirqd/3         0.0%      CPU3           0           S
+27    kworker/3:0-events  0.0%      CPU3           0           I
+28    kworker/3:0H        0.0%      CPU3           0           I
+29    kdevtmpfs           0.0%      CPU0           0           S
+30    netns               0.0%      CPU0           0           I
+36    kauditd             0.0%      CPU0           0           S
+265   oom_reaper          0.0%      CPU0           0           S
+266   writeback           0.0%      CPU0           0           I
+269   ksmd                0.0%      CPU0           0           S
+276   kblockd             0.0%      CPU0           0           I
+277   blkcg_punt_bio      0.0%      CPU0           0           I
+287   watchdogd           0.0%      CPU0           0           S
+289   kworker/1:1-mm_percpu_wq  0.0%      CPU1           0           I
+317   kswapd0             0.0%      CPU0           0           S
+423   kboxd               0.0%      CPU0           0           S
+427   kworker/u9:0        0.0%      CPU0           0           I
+428   kworker/2:1-mm_percpu_wq  0.0%      CPU2           0           I
+429   kworker/3:1-mm_percpu_wq  0.0%      CPU3           0           I
+749   kenv                0.0%      CPU0           0           D
+1337  cpldintwork         0.0%      CPU0           0           I
+1441  ubi_bgt3d           0.0%      CPU0           0           S
+1589  ata_sff             0.0%      CPU0           0           I
+1608  scsi_eh_0           0.0%      CPU0           0           S
+1609  scsi_tmf_0          0.0%      CPU0           0           I
+1613  scsi_eh_1           0.0%      CPU0           0           S
+1614  scsi_tmf_1          0.0%      CPU0           0           I
+1717  udpsvd              0.0%      CPU0           0           S
+2349  loop8               0.0%      CPU0           0           S
+2357  loop9               0.0%      CPU0           0           S
+2434  ubifs_bgt3_0        0.0%      CPU0           0           S
+2593  udhcpc              0.0%      CPU0           0           S
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display memory-usage
+ Memory utilization statistics at 2026-09-14 16:22:26 680 ms 
+ System Total Available Memory Is: 2081009664 bytes
+ Total Memory Used Is: 764411904 bytes
+ Memory Using Percentage Is: 36%
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# dns, ip pool, help (?) output for nqa/track, ping -nexthop
+# captured 2026-09-14 14:48:52 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include dns
+dns resolve
+dns server 8.8.8.8
+dns server 1.1.1.1
+dns proxy enable
+dns relay enable
+ rule 5 permit udp destination 1.1.1.1 0 destination-port eq dns
+ rule 6 permit udp destination 8.8.8.8 0 destination-port eq dns
+ rule 15 permit udp destination-port eq dns
+ rule 5 permit udp destination 1.1.1.1 0 destination-port eq dns
+ rule 6 permit udp destination 8.8.8.8 0 destination-port eq dns
+ dhcp server dns-list 1.1.1.1 8.8.8.8
+ dhcp server dns-list 1.1.1.1 8.8.8.8
+ dhcp server dns-list 1.1.1.1 8.8.8.8
+ dhcp server dns-list 192.168.233.233
+ dhcp server dns-list 1.1.1.1 8.8.8.8
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip pool 
+ -------------------------------------------------------------------------------------
+  Pool-name        : Vlanif1
+  Pool-No          : 0
+  Lease            : 1 Days 0 Hours 0 Minutes
+  Position         : Interface       
+  Status           : Unlocked
+  Gateway-0        : -               
+  Network          : 10.0.1.0
+  Mask             : 255.255.255.0
+  VPN instance     : --
+  Conflicted address recycle interval: -
+  Address Statistic: Total       :254       Used        :21         
+                     Idle        :0         Expired     :0          
+                     Conflict    :1         Disabled    :232        
+                     Ping        :1         Decline     :0          
+                     Auth        :0      
+
+ -------------------------------------------------------------------------------------
+  Pool-name        : Vlanif10
+  Pool-No          : 1
+  Lease            : 7 Days 0 Hours 0 Minutes
+  Position         : Interface       
+  Status           : Unlocked
+  Gateway-0        : -               
+                                          
+
+  IP address Statistic
+    Total       :1274   
+    Used        :147        Idle        :794    
+    Expired     :27         Conflict    :3          Disabled    :330    
+    Ping        :2          Decline     :1          Auth        :0      
+<AR730_XXXXXXXXXXXXXXXXXXXX>isplay current-configuration | include nat outbound
+                            ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa ?
+  event          Event message
+  ipfpm          Enable IPFPM (IP Flow Performance Measurement) function
+  reflector      Reflector
+  test-instance  Specify an NQA test instance
+  twamp-light    TWAMP Light configuration
+  upload         Upload test results
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa 
+                                ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan4
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4] test-type ?
+  dhcp         DHCP type NQA test
+  dns          DNS type NQA test
+  ftp          FTP type NQA test
+  http         HTTP type NQA test
+  icmp         ICMP type NQA test
+  icmpjitter   ICMPJITTER type NQA test
+  jitter       JITTER type NQA test
+  lspping      LSPPING type NQA test
+  lsptrace     LSPTRACE type NQA test
+  snmp         SNMP type NQA test
+  tcp          TCP type NQA test
+  trace        TRACE type NQA test
+  udp          UDP type NQA test
+  vplsping     VPLSPING type NQA test
+  vplspwping   VPLSPWPING type NQA test
+  vplspwtrace  VPLSPWTRACE type NQA test
+  vplstrace    VPLSTRACE type NQA test
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4]test-type 
+                                                     ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4] ?
+NQA interface view commands:
+  adv-factor             Specify jitter-codec test advantage factor
+  agetime                Specify NQA agetime
+  alarm                  Alarm message
+  arp                    Specify ARP configuration information
+  arp-ping               ARP-ping
+  backup                 Backup  information
+  clear-records          Clear all the statistic of the NQA test
+  community              Specify the community name used in an NQA SNMP test
+  datafill               Specify NQA test packets payload string
+  datasize               Specify NQA test packets bytes
+  description            Specify NQA test description information
+  destination-address    Set destination-address
+  destination-port       Set destination-port
+  dialer                 Dialer
+  display                Display information
+  dns-server             Set DNS server
+  fail-percent           Set NQA test fail percent
+  forwarding-simulation  Simulate product forwarding
+  frequency              Specify NQA interval time between two continue same NQA
+                         test
+  ftp-filename           Specify NQA FTP operation filename
+  ftp-filesize           Specify NQA FTP operation filesize
+  ftp-operation          Specify NQA FTP test operation
+  ftp-password           Specify NQA FTP test used password
+  ftp-username           Specify NQA FTP test used username
+  hardware-based         Jitter packets are sent by hardware
+  http-operation         Specify NQA HTTP test operation
+  http-url               Specify NQA HTTP operation URL
+  icmp-jitter-mode       Specify the ICMP Jitter test packets format
+  interval               Set interval time between two packets
+  ip-forwarding          Specify the request packet forward by IP
+  jitter-codec           Specify jitter-codec type
+  jitter-packetnum       Set packets number
+  local-pw-id            Select local pw id
+  lsp-exp                Specify lsp test EXP value for echo requests to be sent
+  lsp-nexthop            Set nexthot-address
+  lsp-path               The path of LSP
+  lsp-replymode          Specify lsp test reply mode
+  lsp-tetunnel           Specify lsp te tunnel interface
+  lsp-type               LSP ping/LSP jitter/LSP traceroute test type
+  lsp-version            Specify lsp version of protocol
+  mtrace                 Trace route to multicast source
+  nexthop                Nexthop information
+  packet-rewrite-check   Specify packet rewrite type
+  ping                   <Group> ping command group
+  probe-count            Specify NQA probe number in one test
+  probe-failtimes        Specify NQA test continue probe failure times to send  
+                         trap
+                                          
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4]uit
+                                           ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+[AR730_XXXXXXXXXXXXXXXXXXXX]system-view
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa ?
+  event          Event message
+  ipfpm          Enable IPFPM (IP Flow Performance Measurement) function
+  reflector      Reflector
+  test-instance  Specify an NQA test instance
+  twamp-light    TWAMP Light configuration
+  upload         Upload test results
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa q
+                                ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan4
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4] test-type ?
+  dhcp         DHCP type NQA test
+  dns          DNS type NQA test
+  ftp          FTP type NQA test
+  http         HTTP type NQA test
+  icmp         ICMP type NQA test
+  icmpjitter   ICMPJITTER type NQA test
+  jitter       JITTER type NQA test
+  lspping      LSPPING type NQA test
+  lsptrace     LSPTRACE type NQA test
+  snmp         SNMP type NQA test
+  tcp          TCP type NQA test
+  trace        TRACE type NQA test
+  udp          UDP type NQA test
+  vplsping     VPLSPING type NQA test
+  vplspwping   VPLSPWPING type NQA test
+  vplspwtrace  VPLSPWTRACE type NQA test
+  vplstrace    VPLSTRACE type NQA test
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4]test-type ?
+  dhcp         DHCP type NQA test
+  dns          DNS type NQA test
+  ftp          FTP type NQA test
+  http         HTTP type NQA test
+  icmp         ICMP type NQA test
+  icmpjitter   ICMPJITTER type NQA test
+  jitter       JITTER type NQA test
+  lspping      LSPPING type NQA test
+  lsptrace     LSPTRACE type NQA test
+  snmp         SNMP type NQA test
+  tcp          TCP type NQA test
+  trace        TRACE type NQA test
+  udp          UDP type NQA test
+  vplsping     VPLSPING type NQA test
+  vplspwping   VPLSPWPING type NQA test
+  vplspwtrace  VPLSPWTRACE type NQA test
+  vplstrace    VPLSTRACE type NQA test
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4]test-type q
+                                                     ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4]quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track ?
+  bfd-session          Specify BFD session
+  efm-state            Specify tracked ETHOAM state interface
+  nqa                  Specify NQA test instance
+  route-monitor-group  Specify route monitor group
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track q
+                                                                              ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]track ?
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]track y
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track ?
+  bfd-session          Specify BFD session
+  efm-state            Specify tracked ETHOAM state interface
+  nqa                  Specify NQA test instance
+  route-monitor-group  Specify route monitor group
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track 
+                                                                              ^
+Error:Incomplete command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]track ?
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]track 
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -nexthop ?
+  IP_ADDR<X.X.X.X>  IPv4 address
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -nexthop ?
+  IP_ADDR<X.X.X.X>  IPv4 address
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -nexthop q
+                                          ^
+Error: Wrong parameter found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -c 5 -nexthop 192.168.4.1 8.8.8.8
+  PING 8.8.8.8: 56  data bytes, press CTRL_C to break
+    Reply from 8.8.8.8: bytes=56 Sequence=1 ttl=116 time=40 ms
+    Reply from 8.8.8.8: bytes=56 Sequence=2 ttl=116 time=46 ms
+    Reply from 8.8.8.8: bytes=56 Sequence=3 ttl=116 time=46 ms
+    Reply from 8.8.8.8: bytes=56 Sequence=4 ttl=116 time=45 ms
+    Reply from 8.8.8.8: bytes=56 Sequence=5 ttl=116 time=46 ms
+
+  --- 8.8.8.8 ping statistics ---
+    5 packet(s) transmitted
+    5 packet(s) received
+    0.00% packet loss
+    round-trip min/avg/max = 40/44/46 ms
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display interface GigabitEthernet0/0/3
+GigabitEthernet0/0/3 current state : UP
+Line protocol current state : UP
+Description:WAN4-PORT
+Switch Port, PVID :  103, TPID : 8100(Hex), The Maximum Frame Length is 9596
+IP Sending Frames' Format is PKTFMT_ETHNT_2, Hardware address is 0000-5e00-5301
+Last physical up time   : 2026-09-14 12:50:25 UTC+02:00
+Last physical down time : 2026-09-14 12:49:30 UTC+02:00
+Current system time: 2026-09-14 16:48:01+02:00
+Port Mode: COMMON COPPER
+Speed : 1000,  Loopback: NONE
+Duplex: FULL,  Negotiation: ENABLE
+Mdi   : AUTO,  Clock   : -
+Last 300 seconds input rate 180240 bits/sec, 44 packets/sec
+Last 300 seconds output rate 77312 bits/sec, 40 packets/sec
+Input peak rate 39736200 bits/sec,Record time: 2026-09-11 18:30:58
+Output peak rate 13248048 bits/sec,Record time: 2026-09-14 16:35:22
+
+Input:  160048841 packets, 187952173342 bytes
+  Unicast:          160016889,  Multicast:               31861
+  Broadcast:               91,  Jumbo:                       -
+  Discard:                  0,  Total Error:                 0
+
+  CRC:                      0,  Giants:                      0
+  Jabbers:                  0,  Throttles:                   0
+  Runts:                    0,  Symbols:                     0
+  Ignoreds:                 0,  Frames:                      0
+                                          
+Output:  65857599 packets, 25580097016 bytes
+  Unicast:           65611572,  Multicast:              245997
+  Broadcast:               30,  Jumbo:                       -
+  Discard:                  0,  Total Error:                 0
+                                          
+  Collisions:               0,  ExcessiveCollisions:         0
+  Late Collisions:          0,  Deferreds:                   0
+                                          
+    Input bandwidth utilization threshold : 100.00%
+    Output bandwidth utilization threshold: 100.00%
+    Input bandwidth utilization  : 0.01%  
+    Output bandwidth utilization : 0.01%  
+                                          
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# creating TCP 443 probes (lines pasted outside the nqa view are rejected)
+# captured 2026-09-14 14:55:04 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 8.8.8.8 255.255.255.255 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 1.1.1.1 255.255.255.255 192.168.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 149.112.112.112 255.255.255.255 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 94.140.14.14 255.255.255.255 192.168.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX] destination-port 443
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX] frequency 10
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX] timeout 2
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX] probe-count 3
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX] start now
+                            ^
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX] quit
+<AR730_XXXXXXXXXXXXXXXXXXXX>return
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] test-type tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-address ipv4 149.112.112.112
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w2tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] test-type tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] destination-address ipv4 94.140.14.14
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w3tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] test-type tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] destination-address ipv4 9.9.9.9
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w4tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] test-type tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] destination-address ipv4 8.8.4.4
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w5tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] test-type tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] destination-address ipv4 1.0.0.1
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin w1tcp
+ 
+ NQA entry(admin, w1tcp) :testflag is active ,testtype is tcp 
+  1 . Test 1 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/50/50                             
+   Sum/Square-Sum  Completion Time: 150/7500                             
+   Last Good Probe Time: 2026-09-14 16:53:36.5                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 2 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/60/53                             
+   Sum/Square-Sum  Completion Time: 160/8600                             
+                                          
+<AR730_XXXXXXXXXXXXXXXXXXXX>isplay nqa results test-instance admin w4tcp
+                            ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 149.112.112.112
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 1
+Destination/Mask    Proto   Pre  Cost      Flags NextHop         Interface
+
+149.112.112.112/32  Static  60   0          RD   192.168.1.1     GigabitEthernet0/0/9
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# re-binding default routes to TCP probes
+# captured 2026-09-14 15:00:25 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin w4tcp
+ 
+ NQA entry(admin, w4tcp) :testflag is active ,testtype is tcp 
+  1 . Test 16 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/110/66                            
+   Sum/Square-Sum  Completion Time: 200/16200                            
+   Last Good Probe Time: 2026-09-14 16:56:17.8                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 17 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 16:56:28.3                           
+   Lost packet ratio: 0 %                                                
+  3 . Test 18 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 16:56:38.7                           
+   Lost packet ratio: 0 %                                                
+  4 . Test 19 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/50/43                             
+   Sum/Square-Sum  Completion Time: 130/5700                             
+   Last Good Probe Time: 2026-09-14 16:56:49.1                           
+   Lost packet ratio: 0 %                                                
+  5 . Test 20 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 16:56:59.6                           
+   Lost packet ratio: 0 %                                                
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.4.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin w4tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 6
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h44m29s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d08h04m10s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d08h04m10s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d08h04m13s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h00m08s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001                 
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 0.0.0.0           Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h44m38s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x0                        
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 6
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d08h04m39s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d08h04m39s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 5d08h04m39s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h00m34s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001                 
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h00m04s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002                 
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 0.0.0.0           Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h45m04s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x0                        
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin w2tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.3.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.5.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin w5tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include ip route-static
+ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/8 dhcp
+ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/10 dhcp
+ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/9 dhcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin w4tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin w2tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin w5tcp
+ip route-static 1.0.0.1 255.255.255.255 192.168.5.1
+ip route-static 8.8.4.4 255.255.255.255 192.168.4.1
+ip route-static 9.9.9.9 255.255.255.255 192.168.3.1
+ip route-static 94.140.14.14 255.255.255.255 192.168.2.1
+ip route-static 149.112.112.112 255.255.255.255 192.168.1.1
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.4.1 public
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.1.1 public
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 6
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h01m19s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h00m48s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h00m18s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h00m20s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h00m19s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 0.0.0.0           Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h45m49s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x0                        
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# undo nqa while running is refused; save
+# captured 2026-09-14 15:04:58 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]  nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp]   undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp]   destination-port 81
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp]   start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp]   quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]  return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin w1tcp
+ 
+ NQA entry(admin, w1tcp) :testflag is active ,testtype is tcp 
+  1 . Test 43 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/240/113                           
+   Sum/Square-Sum  Completion Time: 340/62600                            
+   Last Good Probe Time: 2026-09-14 17:00:58.2                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 44 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/50/50                             
+   Sum/Square-Sum  Completion Time: 150/7500                             
+                                          
+<AR730_XXXXXXXXXXXXXXXXXXXX>isplay ip routing-table 0.0.0.0 0 verbose
+                            ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 6
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h04m40s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h04m09s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h03m39s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h03m40s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h03m41s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 0.0.0.0           Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h49m12s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x0                        
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 6
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h05m37s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h05m06s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h04m36s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h04m39s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h04m40s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 0.0.0.0           Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h50m12s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x0                        
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan1
+Error: The test is in progress, it cannot be deleted.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan2
+Error: The test is in progress, it cannot be deleted.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan3
+Error: The test is in progress, it cannot be deleted.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan4
+Error: The test is in progress, it cannot be deleted.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan5
+Error: The test is in progress, it cannot be deleted.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/8 dhcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/9 dhcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 GigabitEthernet0/0/10 dhcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>save
+ Warning: The current configuration will be written to the device. 
+ Are you sure to continue?[Y/N]:Y
+  It will take several minutes to save configuration file, please wait...............
+  Configuration file had been saved successfully
+  Note: The configuration file will take effect after being activated
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration nqa
+[V300R024C00SPC100]
+#
+nqa test-instance admin wan1
+ test-type icmp
+ destination-address ipv4 1.1.1.1
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan2
+ test-type icmp
+ destination-address ipv4 1.0.0.1
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan3
+ test-type icmp
+ destination-address ipv4 8.8.8.8
+ frequency 10
+ timeout 2
+ probe-count 2
+ start now
+nqa test-instance admin wan4
+                                          
+<AR730_XXXXXXXXXXXXXXXXXXXX>isplay current-configuration | include ip route-static
+                            ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include ip route-static
+ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin w4tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin w2tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin w5tcp
+ip route-static 1.0.0.1 255.255.255.255 192.168.5.1
+ip route-static 8.8.4.4 255.255.255.255 192.168.4.1
+ip route-static 9.9.9.9 255.255.255.255 192.168.3.1
+ip route-static 94.140.14.14 255.255.255.255 192.168.2.1
+ip route-static 149.112.112.112 255.255.255.255 192.168.1.1
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.4.1 public
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.1.1 public
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# probe failure test; save with an invalid answer
+# captured 2026-09-14 15:09:55 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan1
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan1] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan1] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan1
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan2] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan2] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan2
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan3] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan3] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan3
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan4
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan4] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan4
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin wan5
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan5] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-wan5] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin wan5
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-address ipv4 192.0.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h10m32s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h10m01s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h09m31s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h09m32s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h09m32s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-address ipv4 149.112.112.112
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h11m00s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h10m29s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h09m59s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h10m00s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h10m02s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>save
+ Warning: The current configuration will be written to the device. 
+ Are you sure to continue?[Y/N]:d
+Error: Please choose 'YES' or 'NO' first before pressing 'Enter'. [Y/N]:d
+Error: Please choose 'YES' or 'NO' first before pressing 'Enter'. [Y/N]:Y
+  It will take several minutes to save configuration file, please wait...............
+  Configuration file had been saved successfully
+  Note: The configuration file will take effect after being activated
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration nqa
+[V300R024C00SPC100]
+#
+nqa test-instance admin w1tcp
+ test-type tcp
+ destination-address ipv4 149.112.112.112
+ destination-port 443
+ frequency 10
+ timeout 2
+ start now
+nqa test-instance admin w2tcp
+ test-type tcp
+ destination-address ipv4 94.140.14.14
+ destination-port 443
+ frequency 10
+ timeout 2
+ start now
+nqa test-instance admin w3tcp
+ test-type tcp
+ destination-address ipv4 9.9.9.9
+ destination-port 443
+ frequency 10
+ timeout 2
+ start now
+nqa test-instance admin w4tcp
+                                          
+<AR730_XXXXXXXXXXXXXXXXXXXX>isplay startup
+                            ^
+Error: Unrecognized command found at '^' position.
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# nqa history, display startup
+# captured 2026-09-14 15:15:54 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-address ipv4 192.0.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa history test-instance admin w1tcp
+ NQA entry(admin, w1tcp) history:
+Index T/H/P       Response Status       Address         Time                 
+ 1    97/1/2          50ms success      149.112.112.112 2026-09-14 17:10:10.210 
+ 2    97/1/3          40ms success      149.112.112.112 2026-09-14 17:10:14.590 
+ 3    98/1/1          50ms success      149.112.112.112 2026-09-14 17:10:16.600 
+ 4    98/1/2          50ms success      149.112.112.112 2026-09-14 17:10:20.600 
+ 5    98/1/3          50ms success      149.112.112.112 2026-09-14 17:10:24.800 
+ 6    99/1/1          50ms success      149.112.112.112 2026-09-14 17:10:29.020 
+ 7    99/1/2          50ms success      149.112.112.112 2026-09-14 17:10:33.210 
+ 8    99/1/3          50ms success      149.112.112.112 2026-09-14 17:10:37.420 
+ 9    100/1/1         50ms success      149.112.112.112 2026-09-14 17:10:39.420 
+ 10   100/1/2         50ms success      149.112.112.112 2026-09-14 17:10:43.430 
+ 11   100/1/3         50ms success      149.112.112.112 2026-09-14 17:10:47.920 
+ 12   101/1/1         50ms success      149.112.112.112 2026-09-14 17:10:49.920 
+ 13   101/1/2         50ms success      149.112.112.112 2026-09-14 17:10:53.940 
+ 14   102/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:10:57.010 
+ 15   102/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:11:01.360 
+ 16   102/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:11:05.550 
+ 17   103/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:11:07.550 
+ 18   103/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:11:11.550 
+ 19   103/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:11:15.850 
+ 20   104/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:11:18.000 
+ 21   104/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:11:22.000 
+ 22   104/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:11:26.160 
+ 23   105/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:11:28.160 
+ 24   105/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:11:32.550 
+ 25   105/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:11:36.750 
+ 26   106/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:11:38.750 
+ 27   106/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:11:42.760 
+ 28   106/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:11:47.270 
+ 29   107/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:11:49.280 
+ 30   107/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:11:53.280 
+ 31   107/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:11:57.460 
+ 32   108/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:11:59.670 
+ 33   108/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:12:03.860 
+ 34   108/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:12:08.050 
+ 35   109/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:12:10.050 
+ 36   109/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:12:14.170 
+ 37   109/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:12:18.470 
+ 38   110/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:12:20.470 
+ 39   110/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:12:24.660 
+ 40   110/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:12:28.860 
+ 41   111/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:12:31.050 
+ 42   111/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:12:35.290 
+ 43   111/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:12:39.300 
+ 44   112/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:12:41.310 
+ 45   112/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:12:45.650 
+ 46   112/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:12:49.730 
+ 47   113/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:12:51.740 
+ 48   113/1/2       2000ms timeout      192.0.2.1       2026-09-14 17:12:55.960 
+ 49   113/1/3       2000ms timeout      192.0.2.1       2026-09-14 17:13:00.170 
+ 50   114/1/1       2000ms timeout      192.0.2.1       2026-09-14 17:13:02.360 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h15m43s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h15m12s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h14m42s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h14m44s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h14m45s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] destination-address ipv4 149.112.112.112
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h17m27s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h16m56s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h16m26s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h16m28s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h16m29s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>display startup
+MainBoard: 
+  Startup system software:                   flash:/AR700_V300R024C00SPC100.cc
+  Next startup system software:              flash:/AR700_V300R024C00SPC100.cc
+  Backup system software for next startup:   null
+  Startup saved-configuration file:          flash:/vrpcfg.zip
+  Next startup saved-configuration file:     flash:/vrpcfg.zip
+  Startup license file:                      null
+  Next startup license file:                 null
+  Startup patch package:                     null
+  Next startup patch package:                null
+  Startup voice-files:                       null
+  Next startup voice-files:                  null
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# TCP probe bound to a route does NOT withdraw it
+# captured 2026-09-14 15:19:54 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin t1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] test-type tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] destination-address ipv4 192.0.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] destination-port 443
+Warning: The specified port is a well-known port, and it is possible to conflict.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin t1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h21m24s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h20m23s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h20m22s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h20m25s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h01m54s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002                 
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# ICMP probe bound to a route DOES withdraw it (State: Invalid Adv Relied); frequency warning
+# captured 2026-09-14 15:23:54 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin t1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] test-type icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] destination-address ipv4 192.0.2.1 
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] frequency 10
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] start now
+Warning: It is recommended that the frequency be greater than 14. Otherwise, the test result may be incorrect.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin t1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin t1icmp
+ 
+ NQA entry(admin, t1icmp) :testflag is active ,testtype is icmp 
+  1 . Test 3 result   The test is finished
+   Send operation times: 3              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:3         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:192.0.2.1                                      
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+  2 . Test 4 result   The test is finished
+   Send operation times: 3              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:3         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:192.0.2.1                                      
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+  3 . Test 5 result   The test is finished
+   Send operation times: 3              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:3         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:192.0.2.1                                      
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+  4 . Test 6 result   The test is finished
+   Send operation times: 3              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:3         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:192.0.2.1                                      
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+  5 . Test 7 result   The test is finished
+   Send operation times: 3              Receive response times: 0          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:3         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:192.0.2.1                                      
+   Min/Max/Average Completion Time: 0/0/0                                
+   Sum/Square-Sum  Completion Time: 0/0                                  
+   Last Good Probe Time: 0000-00-00 00:00:00.0                           
+   Lost packet ratio: 100 %                                              
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h25m27s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h24m26s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003       
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h24m25s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h24m26s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Invalid Adv Relied      Age: 00h01m49s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002                 
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: R
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin t1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1tcp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin t1tcp
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin t1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-t1icmp] quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo nqa test-instance admin t1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include ip route-static
+ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin w4tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin w2tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin w5tcp
+ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1tcp
+ip route-static 1.0.0.1 255.255.255.255 192.168.5.1
+ip route-static 8.8.4.4 255.255.255.255 192.168.4.1
+ip route-static 9.9.9.9 255.255.255.255 192.168.3.1
+ip route-static 94.140.14.14 255.255.255.255 192.168.2.1
+ip route-static 149.112.112.112 255.255.255.255 192.168.1.1
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.4.1 public
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.1.1 public
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+==============================================================================
+# final ICMP probes w1icmp..w5icmp bound to the default routes
+# captured 2026-09-14 15:30:19 UTC
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]  nqa test-instance admin w1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   test-type icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   destination-address ipv4 149.112.112.112
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   frequency 15
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]   quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]  nqa test-instance admin w2icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   test-type icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   destination-address ipv4 94.140.14.14
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   frequency 15
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]   quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]  nqa test-instance admin w3icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   test-type icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   destination-address ipv4 9.9.9.9 
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   frequency 15
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w3icmp]   quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]  nqa test-instance admin w4icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   test-type icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   destination-address ipv4 8.8.4.4 
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   frequency 15
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w4icmp]   quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]  nqa test-instance admin w5icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   test-type icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   destination-address ipv4 1.0.0.1 
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   frequency 15
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   timeout 2
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   probe-count 3
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w5icmp]   quit
+[AR730_XXXXXXXXXXXXXXXXXXXX]  return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin w1icmp
+ 
+ NQA entry(admin, w1icmp) :testflag is active ,testtype is icmp 
+  1 . Test 1 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/220/110                           
+   Sum/Square-Sum  Completion Time: 330/54500                            
+   Last Good Probe Time: 2026-09-14 17:25:03.6                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 2 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/50/50                             
+   Sum/Square-Sum  Completion Time: 150/7500                             
+   Last Good Probe Time: 2026-09-14 17:25:19.1                           
+   Lost packet ratio: 0 %                                                
+  3 . Test 3 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/60/53                             
+   Sum/Square-Sum  Completion Time: 160/8600                             
+   Last Good Probe Time: 2026-09-14 17:25:34.8                           
+   Lost packet ratio: 0 %                                                
+  4 . Test 4 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/50/50                             
+   Sum/Square-Sum  Completion Time: 150/7500                             
+   Last Good Probe Time: 2026-09-14 17:25:52.3                           
+   Lost packet ratio: 0 %                                                
+  5 . Test 5 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:149.112.112.112                                
+   Min/Max/Average Completion Time: 50/50/50                             
+   Sum/Square-Sum  Completion Time: 150/7500                             
+   Last Good Probe Time: 2026-09-14 17:26:08.3                           
+   Lost packet ratio: 0 %                                                
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nqa results test-instance admin w4icmp
+ 
+ NQA entry(admin, w4icmp) :testflag is active ,testtype is icmp 
+  1 . Test 3 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 17:25:37.7                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 4 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 17:25:55.3                           
+   Lost packet ratio: 0 %                                                
+  3 . Test 5 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 17:26:11.1                           
+   Lost packet ratio: 0 %                                                
+  4 . Test 6 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 17:26:26.6                           
+   Lost packet ratio: 0 %                                                
+  5 . Test 7 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:8.8.4.4                                        
+   Min/Max/Average Completion Time: 40/40/40                             
+   Sum/Square-Sum  Completion Time: 120/4800                             
+   Last Good Probe Time: 2026-09-14 17:26:42.4                           
+   Lost packet ratio: 0 %                                                
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.4.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin w4icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.1.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.2.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin w2icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.3.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]undo ip route-static 0.0.0.0 0.0.0.0 192.168.5.1
+[AR730_XXXXXXXXXXXXXXXXXXXX]ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin w5icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX]return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip routing-table 0.0.0.0 0 verbose
+Route Flags: R - relay, D - download to fib, T - to vpn-instance
+------------------------------------------------------------------------------
+Routing Table : Public
+Summary Count : 5
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.4.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h01m15s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000001       
+ RelayNextHop: 0.0.0.0           Interface: Vlanif103
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.1.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h01m14s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000002       
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/9
+     TunnelID: 0x0                   Flags: RD
+
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h01m13s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.3.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h01m41s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000004                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+                                          
+Destination: 0.0.0.0/0                    
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.5.1       Neighbour: 0.0.0.0
+        State: Invalid Adv             Age: 00h01m49s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000005                 
+ RelayNextHop: 0.0.0.0           Interface: Unknown
+     TunnelID: 0x0                   Flags: 
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration | include ip route-static
+ip route-static 0.0.0.0 0.0.0.0 192.168.4.1 track nqa admin w4icmp
+ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1icmp
+ip route-static 0.0.0.0 0.0.0.0 192.168.2.1 track nqa admin w2icmp
+ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3icmp
+ip route-static 0.0.0.0 0.0.0.0 192.168.5.1 track nqa admin w5icmp
+ip route-static 1.0.0.1 255.255.255.255 192.168.5.1
+ip route-static 8.8.4.4 255.255.255.255 192.168.4.1
+ip route-static 9.9.9.9 255.255.255.255 192.168.3.1
+ip route-static 94.140.14.14 255.255.255.255 192.168.2.1
+ip route-static 149.112.112.112 255.255.255.255 192.168.1.1
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.4.1 public
+ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.1.1 public
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
