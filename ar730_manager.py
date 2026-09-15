@@ -33,6 +33,10 @@ import time
 import datetime
 import csv
 import zlib
+import copy
+import urllib.error
+import urllib.parse
+import urllib.request
 
 try:
     import tkinter as tk
@@ -130,6 +134,13 @@ DEFAULT_SETTINGS = {
     # آخر شبكة وقائمة اختيرتا لجهاز إدارة — افتراضيان للنافذة التالية فقط
     "mgmt_iface": "Vlanif20",
     "mgmt_acl": "2999",
+    # مزامنة Firebase اختيارية. تبقى بيانات الربط على هذا الجهاز ولا تُرفع.
+    "firebase_api_key": "",
+    "firebase_project_id": "",
+    "firebase_email": "",
+    "firebase_password": "",
+    "firebase_last_sync": "",
+    "firebase_pending_sync": False,
 }
 
 BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -232,6 +243,16 @@ TXT = {
         "save_settings": "حفظ الإعدادات",
         "groups_hint": "المجموعات تُقرأ من الراوتر. الصلاحيات تُضبط بـ acl-id داخل كل مجموعة.",
         "sync_note": "الحقيقة عند الراوتر — الملف المحلي يحمل الأسماء والسجل فقط.",
+        "firebase_title": "مزامنة Firebase (اختيارية)",
+        "firebase_key": "Firebase Web API Key",
+        "firebase_project": "Firebase Project ID",
+        "firebase_email": "بريد حساب المزامنة",
+        "firebase_password": "كلمة مرور حساب المزامنة",
+        "firebase_hint": "اترك الحقول فارغة للتخزين المحلي فقط. فعّل Email/Password في Firebase Authentication وأنشئ قاعدة Firestore. تُحفظ نسخة محلية دائماً وتُرفع التغييرات تلقائياً عند توفر الإنترنت.",
+        "firebase_sync_now": "مزامنة الآن",
+        "firebase_ok": "اكتملت مزامنة Firebase.",
+        "firebase_offline": "تعذرت مزامنة Firebase؛ حُفظ التغيير محلياً وسيُعاد إرساله عند توفر الإنترنت.",
+        "firebase_bad_config": "أكمل بيانات Firebase: API Key وProject ID والبريد وكلمة المرور.",
         "lang_note": "تغيير اللغة يحتاج إعادة تشغيل البرنامج",
         "state_blocked": "محظور على الراوتر ⚠",
         "copy_cell": "نسخ: %s",
@@ -503,6 +524,16 @@ TXT = {
         "save_settings": "Save Settings",
         "groups_hint": "Groups are read from the router. Permissions come from acl-id in each group.",
         "sync_note": "The router is the source of truth - the local file holds names and history.",
+        "firebase_title": "Firebase sync (optional)",
+        "firebase_key": "Firebase Web API Key",
+        "firebase_project": "Firebase Project ID",
+        "firebase_email": "Sync account e-mail",
+        "firebase_password": "Sync account password",
+        "firebase_hint": "Leave these fields empty for local storage only. Enable Email/Password in Firebase Authentication and create a Firestore database. A local copy is always kept; changes upload automatically when the internet is available.",
+        "firebase_sync_now": "Sync now",
+        "firebase_ok": "Firebase sync completed.",
+        "firebase_offline": "Firebase sync failed; the change is saved locally and will be sent when the internet is available.",
+        "firebase_bad_config": "Complete Firebase API Key, Project ID, e-mail and password.",
         "lang_note": "Language change requires restarting the application",
         "state_blocked": "Blocked on router ⚠",
         "copy_cell": "Copy: %s",
@@ -2302,9 +2333,118 @@ def mgmt_entries(st):
 # قاعدة البيانات المحلية — أسماء وصفية وسجل
 # ----------------------------------------------------------------------------
 
+FIREBASE_LOCAL_KEYS = set(("firebase_api_key", "firebase_project_id",
+                           "firebase_email", "firebase_password",
+                           "firebase_last_sync", "firebase_pending_sync"))
+
+
+class FirebaseSync(object):
+    """مخزن Firestore اختياري، يبقي ملف JSON المحلي هو النسخة العاملة دائماً."""
+
+    COLLECTION = "ar730_manager"
+    DOCUMENT = "shared_state"
+
+    def __init__(self, settings):
+        self.settings = settings
+
+    def configured(self):
+        return all(str(self.settings.get(k, "")).strip() for k in
+                   ("firebase_api_key", "firebase_project_id", "firebase_email",
+                    "firebase_password"))
+
+    @staticmethod
+    def _field(value):
+        if value is None:
+            return {"nullValue": None}
+        if isinstance(value, bool):
+            return {"booleanValue": value}
+        if isinstance(value, int):
+            return {"integerValue": str(value)}
+        if isinstance(value, float):
+            return {"doubleValue": value}
+        if isinstance(value, str):
+            return {"stringValue": value}
+        if isinstance(value, list):
+            return {"arrayValue": {"values": [FirebaseSync._field(v) for v in value]}}
+        if isinstance(value, dict):
+            return {"mapValue": {"fields": {str(k): FirebaseSync._field(v)
+                                                 for k, v in value.items()}}}
+        return {"stringValue": str(value)}
+
+    @staticmethod
+    def _value(field):
+        if "nullValue" in field:
+            return None
+        if "booleanValue" in field:
+            return field["booleanValue"]
+        if "integerValue" in field:
+            return int(field["integerValue"])
+        if "doubleValue" in field:
+            return field["doubleValue"]
+        if "stringValue" in field:
+            return field["stringValue"]
+        if "arrayValue" in field:
+            return [FirebaseSync._value(v) for v in field["arrayValue"].get("values", [])]
+        if "mapValue" in field:
+            return {k: FirebaseSync._value(v)
+                    for k, v in field["mapValue"].get("fields", {}).items()}
+        return None
+
+    def _request(self, url, method="GET", payload=None, token=None):
+        body = None if payload is None else json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        req = urllib.request.Request(url, data=body, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=12) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
+            raise RuntimeError("Firebase: %s" % exc)
+
+    def _token(self):
+        key = urllib.parse.quote(self.settings["firebase_api_key"], safe="")
+        return self._request("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + key,
+                             method="POST", payload={
+                                 "email": self.settings["firebase_email"],
+                                 "password": self.settings["firebase_password"],
+                                 "returnSecureToken": True})["idToken"]
+
+    def _url(self):
+        project = urllib.parse.quote(self.settings["firebase_project_id"], safe="")
+        return ("https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents/%s/%s"
+                % (project, self.COLLECTION, self.DOCUMENT))
+
+    def pull(self):
+        """يعيد الحالة أو None حين لا توجد بعد في Firestore."""
+        if not self.configured():
+            return None
+        try:
+            doc = self._request(self._url(), token=self._token())
+        except RuntimeError as exc:
+            if "HTTP Error 404" in str(exc):
+                return None
+            raise
+        fields = doc.get("fields", {})
+        state = self._value(fields.get("state", {})) if fields.get("state") else None
+        return state if isinstance(state, dict) else None
+
+    def push(self, db_data):
+        if not self.configured():
+            return None
+        # لا تُرفع بيانات دخول Firebase ولا كلمة مرور MAC المشتركة إلى السحابة.
+        shared_settings = {k: copy.deepcopy(v) for k, v in self.settings.items()
+                           if k not in FIREBASE_LOCAL_KEYS and k != "mac_shared_password"}
+        state = {"saved_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                 "settings": shared_settings, "db": copy.deepcopy(db_data)}
+        self._request(self._url(), method="PATCH", token=self._token(),
+                      payload={"fields": {"state": self._field(state)}})
+        return state["saved_at"]
+
 class LocalDB(object):
-    def __init__(self, path=None):
+    def __init__(self, path=None, on_save=None):
         self.path = path or DB_FILE
+        self.on_save = on_save
         self.data = {"devices": {}, "portal": {}, "mgmt": {}, "history": []}
         self.load()
 
@@ -2324,6 +2464,8 @@ class LocalDB(object):
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(self.data, f, ensure_ascii=False, indent=2)
         os.replace(tmp, self.path)
+        if self.on_save:
+            self.on_save()
 
     def log(self, action, target, detail=""):
         self.data["history"].append({
@@ -2660,6 +2802,18 @@ class App(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
         self.settings = load_settings()
+        self.firebase = FirebaseSync(self.settings)
+        self._firebase_state = None
+        if self.firebase.configured():
+            try:
+                self._firebase_state = self.firebase.pull()
+                if self._firebase_state:
+                    remote_settings = self._firebase_state.get("settings", {})
+                    if isinstance(remote_settings, dict):
+                        self.settings.update(remote_settings)
+            except Exception:
+                # التطبيق لا يتوقف إن كان الإنترنت أو Firebase غير متاحين.
+                self.settings["firebase_pending_sync"] = True
         self.lang = self.settings.get("ui_lang", "ar")
         self.T = TXT.get(self.lang, TXT["ar"])
 
@@ -2667,7 +2821,15 @@ class App(tk.Tk):
         # المقاس يُحسب بعد البناء في _fit_window — الشريط العلوي هو الذي
         # يفرض أدنى عرض، وعدد حقوله يتغيّر بتغيّر اللغة والإصدار
 
-        self.db = LocalDB()
+        self.db = LocalDB(on_save=self._on_db_saved)
+        if self._firebase_state and isinstance(self._firebase_state.get("db"), dict):
+            self.db.data = self._firebase_state["db"]
+            saved = self.db.on_save
+            self.db.on_save = None
+            self.db.save()
+            self.db.on_save = saved
+            self.settings["firebase_last_sync"] = self._firebase_state.get("saved_at", "")
+            save_settings(self.settings)
         self.demo_mode = False
         self._busy = False
         # سجل الأوامر يُملأ من الخيط الجانبي، وTk لا تحتمل ذلك.
@@ -2702,6 +2864,76 @@ class App(tk.Tk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._refresh_device_table()
         self._refresh_portal_table()
+        self._firebase_after = self.after(60000, self._firebase_poll)
+
+    # -- مزامنة Firebase ----------------------------------------------------
+
+    def _save_settings(self):
+        save_settings(self.settings)
+        self._sync_firebase(quiet=True)
+
+    def _on_db_saved(self):
+        self._sync_firebase(quiet=True)
+
+    def _sync_firebase(self, quiet=False):
+        if not self.firebase.configured():
+            return False
+
+    def _apply_firebase_state(self, state):
+        """يكتب الحالة المشتركة محلياً دون إعادة رفعها فوراً."""
+        remote_settings = state.get("settings", {})
+        if isinstance(remote_settings, dict):
+            self.settings.update(remote_settings)
+        if isinstance(state.get("db"), dict):
+            saved = self.db.on_save
+            self.db.on_save = None
+            self.db.data = state["db"]
+            self.db.save()
+            self.db.on_save = saved
+        self.settings["firebase_last_sync"] = state.get("saved_at", "")
+        self.settings["firebase_pending_sync"] = False
+        save_settings(self.settings)
+        self._refresh_device_table()
+        self._refresh_portal_table()
+
+    def _firebase_first_sync(self):
+        """جهاز جديد يجلب النسخة السحابية قبل أن يفكر في رفع ملفه الفارغ."""
+        try:
+            state = self.firebase.pull()
+            if state:
+                self._apply_firebase_state(state)
+                self._status(self.T["firebase_ok"])
+                return True
+        except Exception:
+            pass
+        return self._sync_firebase(quiet=False)
+        try:
+            self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
+            self.settings["firebase_pending_sync"] = False
+            save_settings(self.settings)
+            if not quiet:
+                self._status(self.T["firebase_ok"])
+            return True
+        except Exception:
+            self.settings["firebase_pending_sync"] = True
+            save_settings(self.settings)
+            if not quiet:
+                self._status(self.T["firebase_offline"], ok=False)
+            return False
+
+    def _firebase_poll(self):
+        try:
+            if self.firebase.configured():
+                # إن وُجد تعديل لم يصل بعد، تكون الأولوية لنسختنا المحلية.
+                if self.settings.get("firebase_pending_sync"):
+                    self._sync_firebase(quiet=True)
+                else:
+                    state = self.firebase.pull()
+                    if state and state.get("saved_at", "") > self.settings.get("firebase_last_sync", ""):
+                        self._apply_firebase_state(state)
+        except Exception:
+            pass
+        self._firebase_after = self.after(60000, self._firebase_poll)
 
     # -- بناء الواجهة --------------------------------------------------------
 
@@ -3346,11 +3578,38 @@ class App(tk.Tk):
     # ---- تبويب الإعدادات ---------------------------------------------------
 
     def _tab_settings(self):
-        f = self._tab_frame(self.T["tab_settings"])
+        # حقول Firebase تجعل التبويب أطول من النوافذ الصغيرة، لذلك يبقى
+        # شريط التمرير داخل هذا التبويب وحده بدلاً من تمديد النافذة كلها.
+        shell = self._tab_frame(self.T["tab_settings"])
+        canvas = tk.Canvas(shell, bg=C["surface"], highlightthickness=0, borderwidth=0)
+        bar = ttk.Scrollbar(shell, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=bar.set)
+        bar.pack(side=self._side(False), fill="y")
+        canvas.pack(side=self._side(), fill="both", expand=True)
+        f = ttk.Frame(canvas, padding=(0, 0), style="Card.TFrame")
+        window = canvas.create_window((0, 0), window=f, anchor="nw")
+
+        def content_resized(ev):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def canvas_resized(ev):
+            canvas.itemconfigure(window, width=ev.width)
+
+        f.bind("<Configure>", content_resized)
+        canvas.bind("<Configure>", canvas_resized)
+        # يعمل العجل فوق مساحة التبويب، وشريط التمرير متاح دائماً بجانب الحقول.
+        canvas.bind("<MouseWheel>", lambda ev: canvas.yview_scroll(
+            -1 * int(getattr(ev, "delta", 0) / 120) if getattr(ev, "delta", 0) else 0,
+            "units"))
+        self.settings_canvas = canvas
 
         self.v_macpw = tk.StringVar(value=self.settings["mac_shared_password"])
         self.v_autosave = tk.BooleanVar(value=self.settings.get("auto_save_config", True))
         self.v_lang = tk.StringVar(value=self.settings.get("ui_lang", "ar"))
+        self.v_firebase_key = tk.StringVar(value=self.settings.get("firebase_api_key", ""))
+        self.v_firebase_project = tk.StringVar(value=self.settings.get("firebase_project_id", ""))
+        self.v_firebase_email = tk.StringVar(value=self.settings.get("firebase_email", ""))
+        self.v_firebase_password = tk.StringVar(value=self.settings.get("firebase_password", ""))
 
         # عمود التسمية وعمود الحقل يتبادلان موضعيهما حسب اتجاه الواجهة
         c_lab, c_fld = (1, 0) if self.rtl else (0, 1)
@@ -3399,6 +3658,28 @@ class App(tk.Tk):
                              style="Muted.TLabel", justify=self._justify())
         lbl_file.grid(row=10, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         self._wrap(lbl_file, f)
+
+        ttk.Separator(f, orient="horizontal").grid(
+            row=11, column=0, columnspan=2, sticky="ew", pady=(22, 10))
+        ttk.Label(f, text=self.T["firebase_title"], style="H1.TLabel",
+                  justify=self._justify()).grid(row=12, column=0, columnspan=2,
+                                                sticky=self._anchor())
+        label(13, self.T["firebase_key"])
+        ttk.Entry(f, textvariable=self.v_firebase_key, width=36,
+                  justify=self._justify()).grid(row=13, column=c_fld, sticky="ew")
+        label(14, self.T["firebase_project"])
+        ttk.Entry(f, textvariable=self.v_firebase_project, width=36,
+                  justify=self._justify()).grid(row=14, column=c_fld, sticky="ew")
+        label(15, self.T["firebase_email"])
+        ttk.Entry(f, textvariable=self.v_firebase_email, width=36,
+                  justify=self._justify()).grid(row=15, column=c_fld, sticky="ew")
+        label(16, self.T["firebase_password"])
+        ttk.Entry(f, textvariable=self.v_firebase_password, width=36, show="•",
+                  justify=self._justify()).grid(row=16, column=c_fld, sticky="ew")
+        hint(17, self.T["firebase_hint"], style="Muted.TLabel")
+        ttk.Button(f, text=self.T["firebase_sync_now"],
+                   command=self.on_firebase_sync_now).grid(
+                       row=18, column=c_fld, sticky=s_fld, pady=(0, 14))
 
         # عمود الحقول هو الذي يتمدد، فينساب النص فيه بدل أن يبقى مكدّساً
         f.columnconfigure(c_fld, weight=1)
@@ -3636,7 +3917,7 @@ class App(tk.Tk):
         self.settings["host"] = host
         self.settings["username"] = user
         self.settings["port"] = port
-        save_settings(self.settings)
+        self._save_settings()
 
         self._set_state("● " + self.T["status_on"] + "  " + self.router.hostname,
                         "Ok.TLabel")
@@ -4375,7 +4656,7 @@ class App(tk.Tk):
         self.v_macpw.set(pw)
         self.settings["mac_shared_password"] = pw
         self.settings["mac_access_profile"] = profile
-        save_settings(self.settings)
+        self._save_settings()
         self.db.log("rotate_mac_password", profile, "%d accounts, %d unblocked, %d failed"
                     % (len(macs), len(res["unblocked"]), len(res["failed"])))
         self._refresh_device_table()
@@ -4541,7 +4822,7 @@ class App(tk.Tk):
             return
 
         self.settings["mgmt_iface"], self.settings["mgmt_acl"] = iface, acl_no
-        save_settings(self.settings)
+        self._save_settings()
         self._status(self.T["working"])
         try:
             res = self.router.apply_mgmt_device(plan, desc)
@@ -4793,7 +5074,7 @@ class App(tk.Tk):
         if stale:
             for gw in stale:
                 withdrawn.pop(gw, None)
-            save_settings(self.settings)
+            self._save_settings()
             for ln in lines:
                 if ln["gw"] in stale:
                     ln["withdrawn"] = None
@@ -4838,14 +5119,14 @@ class App(tk.Tk):
             "track": list(removed["track"]) if removed["track"] else None,
             "reason": reason, "at": now_stamp(), "line": removed["line"],
             "name": self._wan_name(ln)}
-        save_settings(self.settings)
+        self._save_settings()
         self.db.log("wan_withdraw", ln["gw"], "%s (%s)" % (self._wan_name(ln), reason))
 
     def _restore(self, ln):
         rec = self.settings["withdrawn_lines"].get(ln["gw"]) or {}
         self.router.restore_wan_line(ln["gw"], rec.get("track"))
         self.settings["withdrawn_lines"].pop(ln["gw"], None)
-        save_settings(self.settings)
+        self._save_settings()
         self.db.log("wan_restore", ln["gw"], self._wan_name(ln))
 
     def on_withdraw_line(self):
@@ -4918,13 +5199,18 @@ class App(tk.Tk):
     def _on_wan_auto_toggle(self):
         self.settings["wan_auto"] = bool(self.v_wan_auto.get())
         self.settings["wan_auto_withdraw"] = bool(self.v_wan_auto_withdraw.get())
-        save_settings(self.settings)
+        self._save_settings()
         self._wan_schedule()
 
     def _wan_schedule(self):
         if self._wan_after is not None:
             try:
                 self.after_cancel(self._wan_after)
+            except Exception:
+                pass
+        if getattr(self, "_firebase_after", None) is not None:
+            try:
+                self.after_cancel(self._firebase_after)
             except Exception:
                 pass
             self._wan_after = None
@@ -4986,11 +5272,40 @@ class App(tk.Tk):
             self._quiet = False
 
     def on_save_settings(self):
+        firebase_was_configured = self.firebase.configured()
         self.settings["mac_shared_password"] = self.v_macpw.get().strip()
         self.settings["auto_save_config"] = bool(self.v_autosave.get())
         self.settings["ui_lang"] = self.v_lang.get()
-        save_settings(self.settings)
+        self.settings["firebase_api_key"] = self.v_firebase_key.get().strip()
+        self.settings["firebase_project_id"] = self.v_firebase_project.get().strip()
+        self.settings["firebase_email"] = self.v_firebase_email.get().strip()
+        self.settings["firebase_password"] = self.v_firebase_password.get()
+        if any(self.settings.get(k) for k in ("firebase_api_key", "firebase_project_id",
+                                              "firebase_email", "firebase_password")) and not self.firebase.configured():
+            save_settings(self.settings)
+            messagebox.showwarning(APP_NAME, self.T["firebase_bad_config"])
+            return
+        if not firebase_was_configured and self.firebase.configured():
+            save_settings(self.settings)
+            self._firebase_first_sync()
+            return
+        self._save_settings()
         self._status("حُفظت الإعدادات / Settings saved")
+
+    def on_firebase_sync_now(self):
+        firebase_was_configured = self.firebase.configured()
+        self.settings["firebase_api_key"] = self.v_firebase_key.get().strip()
+        self.settings["firebase_project_id"] = self.v_firebase_project.get().strip()
+        self.settings["firebase_email"] = self.v_firebase_email.get().strip()
+        self.settings["firebase_password"] = self.v_firebase_password.get()
+        if not self.firebase.configured():
+            messagebox.showwarning(APP_NAME, self.T["firebase_bad_config"])
+            return
+        save_settings(self.settings)
+        if not firebase_was_configured:
+            self._firebase_first_sync()
+        else:
+            self._sync_firebase(quiet=False)
 
     # -- التصدير -------------------------------------------------------------
 

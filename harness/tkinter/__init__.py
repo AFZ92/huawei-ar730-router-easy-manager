@@ -178,7 +178,25 @@ class Frame(_Base): pass
 class Label(_Base): pass
 class Button(_Base): pass
 class Entry(_Base): pass
-class Canvas(_Base): pass
+class Canvas(_Base):
+    """قدر Canvas الذي تستعمله واجهة الإعدادات القابلة للتمرير."""
+    def __init__(self, master=None, **kw):
+        _Base.__init__(self, master, **kw)
+        self.windows = []
+
+    def create_window(self, coords, **kw):
+        self.windows.append((coords, dict(kw)))
+        return len(self.windows)
+
+    def itemconfigure(self, item, **kw):
+        if 0 < item <= len(self.windows):
+            self.windows[item - 1][1].update(kw)
+
+    def bbox(self, tag):
+        return (0, 0, self.req_w, self.req_h)
+
+    def yview(self, *a): pass
+    def yview_scroll(self, *a): pass
 class Menu(_Base):
     def __init__(self, master=None, **kw):
         _Base.__init__(self, master, **kw)

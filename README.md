@@ -126,6 +126,34 @@ The included `run.sh` resolves a suitable interpreter and the Tcl/Tk library pat
 
 </details>
 
+## Synchronising manager devices with Firebase
+
+The application always keeps working from its local data. Optionally, it can also store device
+names, accounts and history in Firebase Firestore and keep them in sync with the other manager
+devices: after each change, at launch, and every minute while it is running. If the internet is
+unavailable, the change remains local and is uploaded when connectivity returns.
+
+1. Create a Firebase project and a **Cloud Firestore** database. Enable **Email/Password** in
+   Authentication and create a dedicated sync account.
+2. In Firestore Rules, allow authenticated users to access only the application's document:
+
+```text
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /ar730_manager/shared_state {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+3. In **Settings**, enter the Web API Key, Project ID, and the sync account's e-mail and password,
+   then choose **Save Settings** or **Sync now**.
+
+Leaving the fields empty retains local-only storage. The SSH password and shared MAC-account
+password are never uploaded. Firebase connection details stay in each device's local settings file.
+
 ## Configuration
 
 Settings live in `ar730_settings.json`, written next to the program on first save.

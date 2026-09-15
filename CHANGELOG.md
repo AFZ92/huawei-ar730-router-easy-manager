@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional Firebase Firestore synchronization: the application always writes its local JSON
+  copy first, uploads changes automatically when online, retries each minute while a change is
+  pending, and downloads newer shared records on other manager devices. Firebase connection
+  details are entered from Settings; leaving them empty retains local-only operation.
+
 - **Change & Apply Password** (Settings tab): changes the shared MAC password in
   `mac-access-profile` and in every MAC account in one operation, unblocks blocked accounts,
   re-reads the profile to confirm the change, and stops before touching any account if the
