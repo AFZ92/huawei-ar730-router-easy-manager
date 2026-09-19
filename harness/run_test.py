@@ -18,6 +18,8 @@ except Exception:          # بايثون قديم أو مخرَج لا يدعم
 WORK = tempfile.mkdtemp(prefix="ar730test_")
 APPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 shutil.copy(os.path.join(APPDIR, "ar730_manager.py"), WORK)
+# قاعدة المُصنِّعين تُقرأ من مجلد البرنامج، فننسخها كي تُختبر كما تُستعمل
+shutil.copytree(os.path.join(APPDIR, "data"), os.path.join(WORK, "data"))
 sys.argv = [os.path.join(WORK, "ar730_manager.py")]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # tkinter+paramiko الوهميان
 sys.path.insert(0, WORK)
@@ -78,7 +80,7 @@ M.FieldDialog = ScriptedDialog
 head("١ — فتح البرنامج")
 app = M.App()
 check("النافذة بُنيت بلا استثناء", True)
-check("ثمانية تبويبات", len(app.nb.tabs_) == 8, "عدد التبويبات: %d" % len(app.nb.tabs_))
+check("تسعة تبويبات", len(app.nb.tabs_) == 9, "عدد التبويبات: %d" % len(app.nb.tabs_))
 check("عناوين أعمدة الأجهزة", len(app.tv_dev.headings) == 6)
 check("لا رسائل خطأ عند الإقلاع", not messagebox.errors(), str(messagebox.errors()))
 
@@ -1095,7 +1097,7 @@ messagebox.reset()
 wan = DEV.wan
 wan.commands[:] = []
 lines = app.on_check_lines()
-check("فُحصت ثلاثة خطوط", lines is not None and len(lines) == 3, str(lines and len(lines)))
+check("فُحصت أربعة خطوط", lines is not None and len(lines) == 4, str(lines and len(lines)))
 byg = {l["gw"]: l for l in app.wan_lines}
 check("WAN1 سليم", byg["192.168.1.1"]["verdict"] == "ok", byg["192.168.1.1"]["verdict"])
 check("WAN2 منفذه مفصول", byg["192.168.2.1"]["verdict"] == "port_down",
@@ -1112,14 +1114,14 @@ check("قياس مباشر عبر -nexthop",
 check("لا ping لمنفذ مفصول", not any("-nexthop 192.168.2.1" in c for _, c in wan.commands))
 check("كل أوامر الفحص من وضع المستخدم (قراءة فقط)",
       all(v == "user" for v, _ in wan.commands), str(set(v for v, _ in wan.commands)))
-check("الجدول فيه ثلاثة صفوف", len(app.tv_wan.get_children()) == 3)
+check("الجدول فيه أربعة صفوف", len(app.tv_wan.get_children()) == 4)
 vals = app.tv_wan.item("192.168.1.1", "values")
 check("اسم الخط من وصف المنفذ", vals[0] == "WAN1", str(vals))
 check("زمن الاستجابة من ping المباشر", "52 ms" in vals[6], str(vals))
 check("ملاحظة السرعة 100 على WAN1",
       any("100" in n for n in app._wan_notes(byg["192.168.1.1"])))
 report = app._wan_report_text()
-check("التقرير يذكر كل خط", all(n in report for n in ("WAN1", "WAN2", "WAN4")))
+check("التقرير يذكر كل خط", all(n in report for n in ("WAN1", "WAN2", "WAN3", "WAN4")))
 check("التقرير يذكر CRC", "CRC 115" in report)
 check("التقرير معروض", "WAN4" in app.txt_wan.get("1.0", "end"))
 check("لا أخطاء", not messagebox.errors(), str(messagebox.errors()))
@@ -1135,13 +1137,15 @@ check("وسم الخطر في الجدول", "bad" in app.tv_wan.item("192.168.1
 
 head("١٣ج — إخراج الخط يدوياً ثم إعادته")
 messagebox.reset()
-# الخط الأخير العامل: نُسقط WAN4 مؤقتاً فلا يبقى غير WAN1 المحجوب
+# الخط الأخير العامل: نُسقط WAN3 وWAN4 مؤقتاً فلا يبقى غير WAN1 المحجوب
+wan.lines["192.168.3.1"]["icmp_ok"] = False
 wan.lines["192.168.4.1"]["icmp_ok"] = False
 app.on_check_lines(live=False)
 app.tv_wan.selection_set("192.168.1.1")
 app.on_withdraw_line()
 check("رفض إخراج الخط حين لا يبقى غيره", len(messagebox.errors()) == 1, str(messagebox.errors()))
 check("لم يُحذف المسار", any("0.0.0.0 0.0.0.0 192.168.1.1" in r for r in wan.routes))
+wan.lines["192.168.3.1"]["icmp_ok"] = True
 wan.lines["192.168.4.1"]["icmp_ok"] = True
 app.on_check_lines(live=False)
 messagebox.reset()
@@ -1230,11 +1234,13 @@ check("يعيده بعد دورتين سليمتين",
 
 # لا يُخرج آخر خط يعمل حتى لو كان محجوباً
 wan.lines["192.168.1.1"]["tcp_ok"] = False
+wan.lines["192.168.3.1"]["icmp_ok"] = False
 wan.lines["192.168.4.1"]["icmp_ok"] = False
 app._wan_monitor_once(); app._wan_monitor_once(); app._wan_monitor_once()
 check("لا يُخرج آخر خط يعمل", any("0.0.0.0 0.0.0.0 192.168.1.1" in r for r in wan.routes))
 
 # الإخراج اليدوي لا تعيده المراقبة
+wan.lines["192.168.3.1"]["icmp_ok"] = True
 wan.lines["192.168.4.1"]["icmp_ok"] = True
 wan.lines["192.168.1.1"]["tcp_ok"] = True
 app.v_wan_auto_withdraw.set(False)
@@ -1247,6 +1253,81 @@ check("الإخراج اليدوي تحترمه المراقبة",
       not any("0.0.0.0 0.0.0.0 192.168.1.1" in r for r in wan.routes))
 app.tv_wan.selection_set("192.168.1.1")
 app.on_restore_line()
+app.v_wan_auto.set(False)
+app.v_wan_auto_withdraw.set(False)
+check("لا أخطاء", not messagebox.errors(), str(messagebox.errors()))
+
+head("١٣و — الخط المخنوق: كل الفحوص تنجح والسعة وحدها تفضحه")
+# قياس السعة: فارق أدنى زمن بين رزمة ٥٦ ورزمة ١٤٠٠ بايت
+check("تقدير السعة من فارق الزمن",
+      M.estimate_kbps({"min": 70, "max": 86}, {"min": 189}) == 180,
+      str(M.estimate_kbps({"min": 70, "max": 86}, {"min": 189})))
+check("خط سريع يبلغ السقف لا أكثر",
+      M.estimate_kbps({"min": 50, "max": 50}, {"min": 50}) == M.WAN_BW_CAP_KBPS)
+# من قياس حقيقي 2026-09-16: WAN1 أعطى أدنى ٥٠ للصغيرة و٣٠ للكبيرة بتشتّت ٣٦
+check("فارق أصغر من ضجيج القياس لا يُصدَّق",
+      M.estimate_kbps({"min": 50, "max": 86}, {"min": 30}) == M.WAN_BW_CAP_KBPS
+      and M.estimate_kbps({"min": 50, "max": 86}, {"min": 80}) == M.WAN_BW_CAP_KBPS,
+      str(M.estimate_kbps({"min": 50, "max": 86}, {"min": 80})))
+check("وفارق يتجاوز الضجيج يُصدَّق",
+      M.estimate_kbps({"min": 70, "max": 86}, {"min": 251}) == 118,
+      str(M.estimate_kbps({"min": 70, "max": 86}, {"min": 251})))
+check("قياس ناقص لا يُقدَّر", M.estimate_kbps({"min": 70, "max": 86}, None) is None
+      and M.estimate_kbps({"min": None}, {"min": 80}) is None)
+
+messagebox.reset()
+wan.lines["192.168.3.1"]["kbps"] = 180          # كما على wan2 الحقيقي بعد انتهاء حصته
+wan.commands[:] = []
+app.on_check_lines()
+byg = {l["gw"]: l for l in app.wan_lines}
+w3 = byg["192.168.3.1"]
+check("ping بالرزمة الكبيرة يُرسل",
+      any(c == "ping -c 10 -s 1400 -t 1000 -nexthop 192.168.3.1 9.9.9.9"
+          for _, c in wan.commands), str([c for _, c in wan.commands if "ping" in c]))
+check("الفحوص كلها ناجحة رغم العطل",
+      w3["icmp_result"]["ok"] and w3["tcp_result"]["ok"])
+check("السعة المقاسة ١٨٠ كيلوبت", w3["kbps"] == 180, str(w3["kbps"]))
+check("الحكم: مخنوق", w3["verdict"] == "throttled", w3["verdict"])
+check("الملاحظة تشرح السبب",
+      any("0.2" in n for n in app._wan_notes(w3)), str(app._wan_notes(w3)))
+check("عمود السعة في الجدول",
+      "0.2" in app.tv_wan.item("192.168.3.1", "values")[7],
+      str(app.tv_wan.item("192.168.3.1", "values")))
+check("وسم الخطر للمخنوق", "bad" in app.tv_wan.item("192.168.3.1", "tags"))
+check("التقرير يذكر السعة والزمنين",
+      "1400" in app._wan_report_text()
+      and str(w3["ping_big"]["min"]) in app._wan_report_text(),
+      str(w3["ping_big"]))
+check("خط سليم لا يُحسب مخنوقاً", byg["192.168.4.1"]["verdict"] == "ok",
+      str(byg["192.168.4.1"]["kbps"]))
+check("لا يصلح بديلاً لخط آخر",
+      "192.168.3.1" not in [l["gw"] for l in app._other_working_lines("192.168.1.1")])
+
+# المراقبة: لا تُخرجه إلا بقياسين، ولا تعيده إلا بقياس يثبت تعافيه
+app._wan_ticks = 0
+app.v_wan_auto.set(True)
+app.v_wan_auto_withdraw.set(True)
+for _ in range(app.WAN_BW_EVERY):
+    app._wan_monitor_once()
+check("قياس واحد لا يكفي لإخراج المخنوق",
+      any("0.0.0.0 0.0.0.0 192.168.3.1" in r for r in wan.routes))
+for _ in range(app.WAN_BW_EVERY):
+    app._wan_monitor_once()
+check("القياس الثاني يُخرجه",
+      not any("0.0.0.0 0.0.0.0 192.168.3.1" in r for r in wan.routes), str(wan.routes))
+rec = app.settings["withdrawn_lines"]["192.168.3.1"]
+check("سبب الإخراج محفوظ", rec["reason"] == "auto" and rec["health"] == "throttled", str(rec))
+check("الرسالة تذكر السعة", "0.2" in app.lbl_status.cget("text"), app.lbl_status.cget("text"))
+
+wan.lines["192.168.3.1"]["kbps"] = 22000
+app._wan_monitor_once()
+check("دورة بلا قياس لا تعيده",
+      not any("0.0.0.0 0.0.0.0 192.168.3.1" in r for r in wan.routes))
+for _ in range(2 * app.WAN_BW_EVERY):
+    app._wan_monitor_once()
+check("يعيده بعد قياسين يثبتان تعافي السعة",
+      "ip route-static 0.0.0.0 0.0.0.0 192.168.3.1 track nqa admin w3icmp" in wan.routes,
+      str(wan.routes))
 app.v_wan_auto.set(False)
 app.v_wan_auto_withdraw.set(False)
 check("لا أخطاء", not messagebox.errors(), str(messagebox.errors()))
@@ -1538,6 +1619,378 @@ check("النصوص متطابقة في اللغتين", set(M.TXT["ar"]) == set
       str(set(M.TXT["ar"]) ^ set(M.TXT["en"])))
 messagebox.reset()
 
+head("١٤ — المتّصلون حسب الشبكة: تحليل مخرجات الجهاز الحقيقي")
+REAL_VLANS = """* : management-vlan
+---------------------
+The total number of vlans is : 13
+VLAN ID Type         Status   MAC Learning Broadcast/Multicast/Unicast Property 
+--------------------------------------------------------------------------------
+1       common       enable   enable       forward   forward   forward default  
+20      common       enable   enable       forward   forward   forward default  
+30      common       enable   enable       forward   forward   forward default  
+107     common       enable   enable       forward   forward   forward default  
+"""
+vl = M.parse_vlan_list(REAL_VLANS)
+check("قائمة الشبكات بأرقامها", [v["vid"] for v in vl] == ["1", "20", "30", "107"], str(vl))
+check("سطر العدّ الإجمالي ليس شبكة", all(v["vid"] != "13" for v in vl), str(vl))
+
+REAL_MACS = """--------------------------------------------------------------------------------
+MAC Address       VLAN/Bridge/VSI/BD      Learned-From               Type      Vpn
+--------------------------------------------------------------------------------
+0000-5e00-5363       1/-/-/-              GE0/0/1                    dynamic   public
+0000-5e00-5371      20/-/-/-              GE0/0/2                    dynamic   public
+0000-5e00-5363      20/-/-/-              GE0/0/2                    dynamic   public
+--------------------------------------------------------------------------------
+Total items displayed = 161 
+"""
+mt = M.parse_mac_table(REAL_MACS)
+check("جدول العناوين الفيزيائية: ثلاثة مداخل", len(mt) == 3, str(mt))
+check("الماك نفسه في شبكتين مدخلان لا واحد",
+      sorted(r["vid"] for r in mt if r["mac"] == "00005e005363") == ["1", "20"], str(mt))
+check("المنفذ المختصر يُوسَّع", mt[0]["port"] == "GigabitEthernet0/0/1", mt[0]["port"])
+
+REAL_POOL = """  Pool-name        : Vlanif1
+  Address Statistic: Total       :254       Used        :21         
+                     Idle        :0         Expired     :0          
+                     Conflict    :1         Disabled    :232        
+ -------------------------------------------------------------------------------------
+  Index              IP             Client-ID    Type       Left   Status           
+ -------------------------------------------------------------------------------------
+    199      10.0.1.200        0000-5e00-5365    DHCP      85619   Used             
+    249      10.0.1.250        0000-5e00-5366    DHCP      -       Static-bind      
+ -------------------------------------------------------------------------------------
+"""
+st = M.parse_pool_stats(REAL_POOL)
+check("إحصاء المجمّع مقروء",
+      st == {"total": 254, "used": 21, "idle": 0, "expired": 0, "conflict": 1, "disabled": 232},
+      str(st))
+lz = M.parse_pool_leases(REAL_POOL)
+check("العقود مفهرسة بالماك", lz["00005e005365"]["ip"] == "10.0.1.200", str(lz))
+check("العنوان المحجوز يتميّز بحالته", lz["00005e005366"]["status"] == "Static-bind")
+
+EMPTY_POOL = """  Pool-name        : Vlanif10
+  Address Statistic: Total       :254       Used        :0          
+                     Idle        :254       Expired     :0          
+                     Conflict    :0         Disabled    :0          
+"""
+check("مجمّع بلا عقود: الجدول غائب لا معطوب", M.parse_pool_leases(EMPTY_POOL) == {})
+check("وإحصاؤه مقروء رغم ذلك", M.parse_pool_stats(EMPTY_POOL)["idle"] == 254)
+
+REAL_SUBIF = """[V300R024C00SPC100]
+#
+interface XGigabitEthernet0/0/0.60
+ dot1q termination vid 60
+ ip address 10.0.60.1 255.255.255.0
+ dhcp select interface
+ dhcp server excluded-ip-address 10.0.60.2 10.0.60.99 
+#
+return
+"""
+check("رقم الشبكة من dot1q لا من لاحقة الاسم", M.parse_dot1q_vid(REAL_SUBIF) == "60",
+      M.parse_dot1q_vid(REAL_SUBIF))
+check("واجهة بلا dot1q ليست شبكة موجَّهة", M.parse_dot1q_vid("interface Vlanif20") == "")
+
+REAL_SUB_ARP = """IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE 
+                                    VLAN/CEVLAN(SIP/DIP)      PVC
+------------------------------------------------------------------------------
+10.0.60.1       0000-5e00-5300            I -         XGE0/0/0.60    
+10.0.60.236     0000-5e00-5380  20        D-0         XGE0/0/0.60    
+                                            60/-      
+10.0.60.166     Incomplete      1         D-0         XGE0/0/0.60    
+------------------------------------------------------------------------------
+Total:10        Dynamic:9       Static:0     Interface:1    
+"""
+sarp = M.parse_arp_table(REAL_SUB_ARP)
+check("ARP الواجهة الفرعية: اسمها يُوسَّع",
+      sarp["00005e005380"]["iface"] == "XGigabitEthernet0/0/0.60", str(sarp.get("00005e005380")))
+check("مدخل Incomplete بلا ماك يُتجاوز", len(sarp) == 2, str(list(sarp)))
+sub = M.vlan_clients([], sarp, {"00005e005380": {"ip": "10.0.60.236", "status": "Used"}}, {}, 60)
+check("شبكة موجَّهة: أجهزتها من ARP رغم خلوّ جدول العناوين الفيزيائية",
+      [r["mac"] for r in sub] == ["00005e005380"], str(sub))
+check("وعنوان البوّابة نفسه ليس جهازاً",
+      all(r["ip"] != "10.0.60.1" for r in sub), str(sub))
+
+rows = M.vlan_clients(
+    [{"mac": "00005e005301", "vid": "20", "port": "GigabitEthernet0/0/2", "kind": "dynamic"},
+     {"mac": "00005e005302", "vid": "20", "port": "GigabitEthernet0/0/2", "kind": "dynamic"},
+     {"mac": "00005e005303", "vid": "20", "port": "GigabitEthernet0/0/2", "kind": "dynamic"},
+     {"mac": "00005e005304", "vid": "20", "port": "GigabitEthernet0/0/2", "kind": "dynamic"},
+     {"mac": "00005e005305", "vid": "1", "port": "GigabitEthernet0/0/1", "kind": "dynamic"}],
+    {"00005e005301": {"ip": "10.0.20.10"}, "00005e005303": {"ip": "10.0.20.30"}},
+    {"00005e005301": {"ip": "10.0.20.10", "status": "Used", "left": "85619"},
+     "00005e005302": {"ip": "10.0.20.20", "status": "Static-bind", "left": "-"}},
+    {"00005e005301": {"status": "Success"}}, 20)
+bym = {r["mac"]: r for r in rows}
+check("شبكة أخرى لا تدخل الجدول", "00005e005305" not in bym, str(list(bym)))
+check("جهاز بعقد إيجار: مؤجَّر", bym["00005e005301"]["kind"] == "dhcp")
+check("جهاز بحجز: محجوز وعنوانه من العقد",
+      bym["00005e005302"]["kind"] == "bind" and bym["00005e005302"]["ip"] == "10.0.20.20")
+check("جهاز بعنوان بلا عقد: ثابت", bym["00005e005303"]["kind"] == "static")
+check("جهاز في جدول العناوين وحده: بلا عنوان",
+      bym["00005e005304"]["kind"] == "none" and bym["00005e005304"]["ip"] == "")
+check("حالة المصادقة تُنقل", bym["00005e005301"]["auth"] == "Success")
+check("الترتيب بالعنوان ومن لا عنوان له في الآخر",
+      [r["mac"] for r in rows][-1] == "00005e005304", str([r["ip"] for r in rows]))
+
+head("١٤أ — المتّصلون حسب الشبكة: التبويب")
+messagebox.reset()
+app.on_refresh_vlans()
+items = list(app.cb_vlan["values"])
+check("القائمة المنسدلة فيها كل الشبكات لا ذوات العنوان فقط",
+      len(items) == 7 and any("VLAN 30" in i for i in items), str(items))
+check("الشبكة ذات العنوان تُظهر عنوانها في القائمة",
+      any("10.0.20.1/23" in i for i in items), str(items))
+check("الاختيار الافتراضي شبكة لها عنوان", app.vlan_state["iface"] == "Vlanif1",
+      str(app.vlan_state and app.vlan_state["iface"]))
+
+# الاختبارات السابقة حرّرت عقد 10.0.20.166 عند تثبيت جهاز إدارة؛ نعيده
+# كي يُختبر الصفّ المؤجَّر إلى جانب الصفّ بلا عنوان
+DEV.mgmt.leases.setdefault("20", {})["10.0.20.166"] = "0000-5e00-5302"
+app.v_vlan.set([i for i in items if i.startswith("VLAN 20")][0])
+app.on_pick_vlan()
+rows = {app.tv_vlan.item(i, "values")[1]: app.tv_vlan.item(i, "values")
+        for i in app.tv_vlan.get_children()}
+check("أجهزة VLAN 20 في الجدول", len(rows) >= 4, str(len(rows)))
+check("جهاز بلا عنوان يظهر رغم غيابه عن ARP",
+      rows["00:00:5E:00:53:71"][0] == "" and
+      rows["00:00:5E:00:53:71"][5] == app.T["vlan_kind_none"] and
+      rows["00:00:5E:00:53:71"][6] == app.T["pres_seen"], str(rows.get("00:00:5E:00:53:71")))
+check("جهاز مؤجَّر يظهر بعنوانه",
+      rows["00:00:5E:00:53:02"][0] == "10.0.20.166" and
+      rows["00:00:5E:00:53:02"][5] == app.T["vlan_kind_dhcp"] and
+      rows["00:00:5E:00:53:02"][6] == app.T["pres_active"], str(rows.get("00:00:5E:00:53:02")))
+check("المنفذ الفيزيائي معروض",
+      rows["00:00:5E:00:53:71"][4] == "GigabitEthernet0/0/2", str(rows.get("00:00:5E:00:53:71")))
+check("ملخّص الشبكة يذكر الواجهة والمجمّع",
+      "Vlanif20" in app.lbl_vlan_sum.cget("text") and
+      app.T["vlan_pool_none"] not in app.lbl_vlan_sum.cget("text"),
+      app.lbl_vlan_sum.cget("text"))
+check("تحذير الأجهزة بلا عنوان ظهر في الشريط",
+      "بلا عنوان" in app.lbl_status.cget("text"), app.lbl_status.cget("text"))
+
+app.v_find_vlan.set("53:71")
+app._refresh_vlan_table()
+check("البحث يصفّي الجدول بلا استعلام جديد", len(app.tv_vlan.get_children()) == 1,
+      str(len(app.tv_vlan.get_children())))
+app.v_find_vlan.set("")
+app._refresh_vlan_table()
+
+app.v_vlan.set([i for i in items if i.startswith("VLAN 30")][0])
+app.on_pick_vlan()
+check("شبكة بلا عنوان: يُشرح غياب المجمّع",
+      app.T["vlan_no_iface"] in app.lbl_vlan_sum.cget("text"), app.lbl_vlan_sum.cget("text"))
+check("وأجهزتها تظهر بالماك والمنفذ وحدهما",
+      [app.tv_vlan.item(i, "values")[0] for i in app.tv_vlan.get_children()] == [""],
+      str([app.tv_vlan.item(i, "values") for i in app.tv_vlan.get_children()]))
+app.v_vlan.set([i for i in items if i.startswith("VLAN 50")][0])
+app.on_pick_vlan()
+check("شبكة بمنفذ بلا حركة: يُقال إن الراوتر لم يتعلّم منها شيئاً",
+      app.T["vlan_empty_noswitch"].split("%")[0].strip() in app.lbl_vlan_sum.cget("text") and
+      "GigabitEthernet0/0/5" in app.lbl_vlan_sum.cget("text"), app.lbl_vlan_sum.cget("text"))
+
+app.v_vlan.set([i for i in items if i.startswith("VLAN 70")][0])
+app.on_pick_vlan()
+check("شبكة موجَّهة تظهر في القائمة بعنوانها رغم غياب Vlanif",
+      app.vlan_state["iface"] == "XGigabitEthernet0/0/0.70", str(app.vlan_state["iface"]))
+check("الملخّص يقول إنها تصل موسومة على المنفذ الأصل",
+      app.T["vlan_summary_sub"].split("%")[0] in app.lbl_vlan_sum.cget("text") and
+      "XGigabitEthernet0/0/0 " in app.lbl_vlan_sum.cget("text"),
+      app.lbl_vlan_sum.cget("text"))
+sub_rows = {app.tv_vlan.item(i, "values")[1]: app.tv_vlan.item(i, "values")
+            for i in app.tv_vlan.get_children()}
+check("أجهزتها معروضة من ARP ومن العقود", len(sub_rows) == 3, str(sub_rows))
+check("جهاز بعقد إيجار وحاضر على الشبكة الموجَّهة",
+      sub_rows["00:00:5E:00:53:75"][5] == app.T["vlan_kind_dhcp"] and
+      sub_rows["00:00:5E:00:53:75"][6] == app.T["pres_active"], str(sub_rows))
+check("وجهاز بعنوان بلا عقد: ثابت",
+      sub_rows["00:00:5E:00:53:77"][5] == app.T["vlan_kind_static"], str(sub_rows))
+check("وعقد بلا أثر حيّ: محجوز فقط وبلا منفذ",
+      sub_rows["00:00:5E:00:53:76"][6] == app.T["pres_lease"] and
+      sub_rows["00:00:5E:00:53:76"][4] == "—", str(sub_rows))
+check("الملخّص يذكر عدد العناوين المحجوزة لغائبين",
+      app.T["vlan_lease_note"].split("%")[1][-3:] in app.lbl_vlan_sum.cget("text") or
+      "محجوز" in app.lbl_vlan_sum.cget("text"), app.lbl_vlan_sum.cget("text"))
+
+app.v_vlan.set([i for i in items if i.startswith("VLAN 40")][0])
+app.on_pick_vlan()
+check("شبكة بلا منفذ: يُقال إنها معرَّفة في الجدول فقط",
+      app.T["vlan_empty_noport"] in app.lbl_vlan_sum.cget("text"),
+      app.lbl_vlan_sum.cget("text"))
+check("وجدولها فارغ بلا تحذير عنونة",
+      not app.tv_vlan.get_children() and not app._vlan_warn, app._vlan_warn)
+
+head("١٤د — أسماء المُصنِّعين")
+check("قاعدة IEEE محمَّلة", len(M.load_oui()) > 50000, str(len(M.load_oui())))
+check("ماك الراوتر نفسه يُنسب إلى هواوي",
+      "HUAWEI" in M.mac_vendor("b8857b8f0b60").upper(), M.mac_vendor("b8857b8f0b60"))
+check("جهاز من الشبكة 60 يُنسب إلى مُصنِّعه",
+      M.mac_vendor("ec74d7a2051b") == "Grandstream Networks", M.mac_vendor("ec74d7a2051b"))
+check("تخصيص ٢٨ بت يسبق تخصيص ٢٤ بت",
+      M.mac_vendor("c85ce27000001") != M.mac_vendor("c85ce2f000001")
+      or M.mac_vendor("c85ce27000001") != "", M.mac_vendor("c85ce27000001"))
+check("العنوان العشوائي بلا مُصنِّع", M.mac_vendor("6a9c52ad78e2") == "")
+check("العشوائي يُكشف من بت التخصيص المحلي",
+      M.mac_is_random("6a9c52ad78e2") and M.mac_is_random("9efbd85a7376")
+      and not M.mac_is_random("b8857b8f0b60"))
+check("بادئة مسجَّلة باسم مخفي تُميَّز", M.mac_vendor("00176111368d") == "\x00",
+      repr(M.mac_vendor("00176111368d")))
+check("بادئة غير مسجَّلة تعود فارغة", M.mac_vendor("fdfdfd010203") == "",
+      repr(M.mac_vendor("fdfdfd010203")))
+check("ومدى التوثيق 00-00-5E مسجَّل لـIANA فعلاً",
+      "IANA" in M.mac_vendor("00005e005371"), M.mac_vendor("00005e005371"))
+
+head("١٤ب — تسمية الأجهزة وفتح العنوان في المتصفح")
+messagebox.reset()
+app.v_vlan.set([i for i in items if i.startswith("VLAN 20")][0])
+app.on_pick_vlan()
+target = "00005e005371"
+check("معرّف الصفّ هو الماك فيثبت بعد التحديث", app.tv_vlan.exists(target))
+app.tv_vlan.selection_set(target)
+SCRIPT.append({"name": "طابعة المحاسبة", "note": "الطابق الثاني"})
+app.on_name_vlan_device()
+check("الاسم حُفظ بالماك لا بالعنوان",
+      app.db.name_of("00005e005371") == "طابعة المحاسبة", app.db.name_of("00005e005371"))
+check("الملاحظة حُفظت معه", app.db.note_of("00005e005371") == "الطابق الثاني")
+check("الجهاز لم يُضف إلى الأجهزة الموثوقة",
+      "00005e005371" not in app.db.data["devices"], str(list(app.db.data["devices"])))
+check("الاسم ظهر في الجدول فوراً",
+      app.tv_vlan.item(target, "values")[2] == "طابعة المحاسبة",
+      str(app.tv_vlan.item(target, "values")))
+cmds_before = len(DEV.commands) if hasattr(DEV, "commands") else 0
+SCRIPT.append({"name": "", "note": ""})
+app.on_name_vlan_device()
+check("اسم فارغ يحذف السجل بدل أن يتركه فارغاً",
+      "00005e005371" not in app.db.data["names"], str(app.db.data["names"]))
+
+# الاسم يتبع الجهاز إلى شبكة أخرى لأنه محفوظ بالماك
+app.db.set_name("00005e005375", "كاميرا المدخل")
+app.v_vlan.set([i for i in items if i.startswith("VLAN 70")][0])
+app.on_pick_vlan()
+named = [app.tv_vlan.item("00005e005375", "values")[2]]
+check("الاسم يتبع الماك عبر الشبكات", named == ["كاميرا المدخل"], str(named))
+
+opened = []
+_real_browser = M.webbrowser
+class _FakeBrowser(object):
+    @staticmethod
+    def open(url):
+        opened.append(url)
+M.webbrowser = _FakeBrowser
+y = app.tv_vlan.get_children().index("00005e005375") * 20
+# في العربية تُعكس الأعمدة عرضاً، فموضع عمود العنوان يُحسب من ترتيب العرض
+_shown = app.tv_vlan.cget("displaycolumns") or app.tv_vlan._copy_cols
+_x_ip = _shown.index("ip") * 100 + 10
+_x_mac = _shown.index("mac") * 100 + 10
+app.tv_vlan.event_generate("<Double-1>", x=_x_ip, y=y)
+check("نقرتان على العنوان تفتحه في المتصفح", opened == ["http://10.0.70.100"], str(opened))
+SCRIPT.append({"name": "حاسب الاستقبال", "note": ""})
+app.tv_vlan.event_generate("<Double-1>", x=_x_mac, y=y)
+check("ونقرتان على غيره تفتح التسمية",
+      app.db.name_of("00005e005375") == "حاسب الاستقبال", app.db.name_of("00005e005375"))
+check("ولم يُفتح متصفح ثانٍ", len(opened) == 1, str(opened))
+M.webbrowser = _real_browser
+
+head("١٤ج — فصل مجموعة أجهزة")
+messagebox.reset()
+app.v_vlan.set([i for i in items if i.startswith("VLAN 20")][0])
+app.on_pick_vlan()
+check("الشبكة ذات المصادقة معروفة كذلك", app.vlan_state["nac"] is True)
+targets = [i for i in app.tv_vlan.get_children()][:2]
+app.tv_vlan.selection_set(*targets)
+before = len(DEV.cut_log)
+messagebox.answers.append(True)
+app.on_cut_vlan_devices()
+check("قُطعت جلستان بعدد المحدَّد", len(DEV.cut_log) - before == 2,
+      str(DEV.cut_log[before:]))
+check("القطع بالماك لا بالعنوان",
+      all("mac-address" in c for c in DEV.cut_log[before:]), str(DEV.cut_log[before:]))
+check("والأمر داخل عرض aaa وحده",
+      all(v == "aaa" for v, c in DEV.history if c.startswith("cut access-user")),
+      str([v for v, c in DEV.history if c.startswith("cut access-user")]))
+check("نافذة التأكيد سردت الأجهزة",
+      any("00:00:5E" in str(m) for _, _, m in messagebox.calls), str(messagebox.calls))
+
+messagebox.reset()
+before = len(DEV.cut_log)
+app.v_vlan.set([i for i in items if i.startswith("VLAN 70")][0])
+app.on_pick_vlan()
+app.tv_vlan.selection_set(*list(app.tv_vlan.get_children())[:1])
+messagebox.answers.append(True)
+app.on_cut_vlan_devices()
+check("شبكة بلا مصادقة: لا أمر يُرسل", len(DEV.cut_log) == before, str(DEV.cut_log[before:]))
+check("ويُشرح للمستخدم لماذا",
+      any(app.T["vlan_cut_no_nac"] in str(m) for _, _, m in messagebox.calls),
+      str(messagebox.calls))
+
+messagebox.reset()
+app.tv_vlan.selection_set()
+app.on_cut_vlan_devices()
+check("بلا تحديد: رسالة لا أمر",
+      any(app.T["vlan_pick_row"] in str(m) for _, _, m in messagebox.calls), str(messagebox.calls))
+check("لا أخطاء في الفصل", not messagebox.errors(), str(messagebox.errors()))
+
+check("لا أخطاء في التسمية", not messagebox.errors(), str(messagebox.errors()))
+
+check("لا أوامر تغيير: كل شيء قراءة", not messagebox.errors(), str(messagebox.errors()))
+
+head("١٤هـ — فحص تداخل الشبكات")
+rep = M.overlap_report([
+    {"vid": "1", "iface": "Vlanif1", "pool": {"total": 254, "used": 21, "idle": 1,
+                                              "disabled": 232},
+     "leases": {"aabbcc000001": {"ip": "10.0.1.10"},
+                "aabbcc000002": {"ip": "10.0.1.11"}}},
+    {"vid": "60", "iface": "XGigabitEthernet0/0/0.60", "pool": {"total": 254, "used": 143,
+                                                                "idle": 12, "disabled": 98},
+     "leases": {"aabbcc000001": {"ip": "10.0.60.120"}}},
+])
+check("الماك الواحد في شبكتين يُكشف", list(rep["dups"]) == ["aabbcc000001"], str(rep["dups"]))
+check("وتُذكر شبكتاه بالترتيب",
+      [e["vid"] for e in rep["dups"]["aabbcc000001"]] == ["1", "60"], str(rep["dups"]))
+check("ومعها عنوانه في كل شبكة",
+      rep["dups"]["aabbcc000001"][1]["ip"] == "10.0.60.120", str(rep["dups"]))
+check("المجمّعان الضيّقان يُرصدان", [e["vid"] for e in rep["tight"]] == ["1", "60"],
+      str(rep["tight"]))
+check("والمتاح يُحسب بعد المستبعَد لا بالكلّي",
+      [e["usable"] for e in rep["tight"]] == [22, 156], str(rep["tight"]))
+check("والمجمّع الواسع لا يُرصد",
+      M.overlap_report([{"vid": "9", "iface": "Vlanif9", "leases": {},
+                         "pool": {"total": 254, "used": 2, "idle": 252,
+                                  "disabled": 0}}])["tight"] == [])
+check("مجمّع بلا أرقام لا يُرصد",
+      M.overlap_report([{"vid": "9", "iface": "Vlanif9", "pool": None,
+                         "leases": {}}])["tight"] == [])
+
+before = len(DEV.history)
+app.on_scan_overlap()
+scans = [c for _, c in DEV.history[before:] if c.startswith("display ip pool interface")]
+check("أمر قراءة واحد لكل شبكة لها واجهة", len(scans) == 4, str(scans))
+check("كلها أوامر قراءة",
+      all(c.startswith("display ") for _, c in DEV.history[before:]),
+      str(DEV.history[before:]))
+check("الشبكات بلا واجهة لم تُستعلم",
+      not any(".30" in c or "Vlanif30" in c for c in scans), str(scans))
+check("الجهاز الذي يحمل عنوانين كُشف",
+      "00005e005302" in app.overlap["dups"], str(list(app.overlap["dups"])))
+check("مجمّع الإدارة الضيّق رُصد",
+      [e["vid"] for e in app.overlap["tight"]] == ["1"], str(app.overlap["tight"]))
+
+app.v_vlan.set([i for i in items if i.startswith("VLAN 20")][0])
+app.on_pick_vlan()
+_row = app.tv_vlan.item("00005e005302", "values")
+check("خانة «شبكات أخرى» تذكر الشبكة الثانية وعنوانه فيها",
+      "VLAN 1" in _row[8] and "10.0.1.10" in _row[8], str(_row))
+check("وصفّه مُعلَّم", "bad" in app.tv_vlan.item("00005e005302", "tags"),
+      str(app.tv_vlan.item("00005e005302", "tags")))
+check("ومن لا عنوان له في غيرها تبقى خانته فارغة",
+      app.tv_vlan.item("00005e005371", "values")[8] == "—",
+      str(app.tv_vlan.item("00005e005371", "values")))
+check("والملخّص ينبّه إلى التسرّب",
+      app.T["vlan_scan_here"].split("%")[0] in app.lbl_vlan_sum.cget("text"),
+      app.lbl_vlan_sum.cget("text"))
+check("الخانة تُصدَّر مع الجدول",
+      app.tv_vlan.heading("other")["text"] == app.T["col_other_nets"],
+      str(app.tv_vlan.heading("other")))
+
 head("١٢ز — اتجاه الواجهة العربية (RTL)")
 check("الواجهة في وضع RTL", app.rtl is True)
 check("الرصف يبدأ من اليمين", app._side() == "right")
@@ -1570,7 +2023,7 @@ check("الرصف يبدأ من اليسار", app2._side() == "left")
 check("المرساة غرب", app2._anchor() == "w")
 check("أعمدة الجدول بترتيبها الطبيعي",
       not app2.tv_dev.cget("displaycolumns"), str(app2.tv_dev.cget("displaycolumns")))
-check("ثمانية تبويبات بالإنجليزية أيضاً", len(app2.nb.tabs_) == 8)
+check("تسعة تبويبات بالإنجليزية أيضاً", len(app2.nb.tabs_) == 9)
 check("واجهة الأزرار إنجليزية", app2.T["dlg_ok"] == "OK", app2.T["dlg_ok"])
 check("نص حول البرنامج إنجليزي",
       "What this program is" in M.ABOUT["en"] and "ما هذا البرنامج" not in M.ABOUT["en"])

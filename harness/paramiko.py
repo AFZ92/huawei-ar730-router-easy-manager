@@ -121,6 +121,8 @@ class FakeAR730(object):
         if cmd.startswith("display "):
             return self._display(cmd)
         if cmd.startswith("cut access-user"):
+            if self.view != "aaa":
+                return "Error: Unrecognized command found at '^' position."
             return self._cut(cmd)
         if cmd.startswith("local-user ") or cmd.startswith("undo local-user "):
             if self.view != "aaa":

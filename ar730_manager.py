@@ -37,6 +37,7 @@ import copy
 import urllib.error
 import urllib.parse
 import urllib.request
+import webbrowser
 
 try:
     import tkinter as tk
@@ -147,6 +148,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
 SETTINGS_FILE = os.path.join(BASE_DIR, "ar730_settings.json")
 DB_FILE = os.path.join(BASE_DIR, "ar730_devices.json")
 LOG_FILE = os.path.join(BASE_DIR, "ar730_session.log")
+# قاعدة أسماء المُصنِّعين من IEEE (MA-L وMA-M وMA-S) مضغوطة بـ zlib.
+# تُقرأ عند أول حاجة إليها؛ غيابها لا يعطّل شيئاً — يُعرض رمز المُصنِّع بدل اسمه.
+OUI_DIRS = (BASE_DIR, os.path.dirname(os.path.abspath(__file__)))
+OUI_FILE = "data/oui.dat"
 
 
 # ----------------------------------------------------------------------------
@@ -301,13 +306,14 @@ TXT = {
         "tab_wan": "خطوط الإنترنت",
         "wan_hint": "يقرأ من الراوتر حالة كل خط: فحص ping الذي يسحب الخط المقطوع تلقائياً، "
                     "وفحص HTTPS الذي يكشف انتهاء الحصة (المزود يترك ping ويحجب المواقع)، "
-                    "مع قياس مباشر لزمن الاستجابة وحالة المنفذ.",
+                    "وقياس السعة برزمة كبيرة يكشف الحصة المخنوقة التي تنجح فيها كل الفحوص، "
+                    "مع زمن الاستجابة وحالة المنفذ.",
         "wan_check": "فحص الخطوط الآن",
         "wan_withdraw": "إخراج الخط من التوزيع",
         "wan_restore": "إعادة الخط إلى التوزيع",
         "wan_copy": "نسخ التقرير",
         "wan_auto": "مراقبة تلقائية كل دقيقة",
-        "wan_auto_withdraw": "إخراج الخط المحجوب تلقائياً وإعادته عند تعافيه",
+        "wan_auto_withdraw": "إخراج الخط المحجوب أو المخنوق تلقائياً وإعادته عند تعافيه",
         "wan_last": "آخر فحص: %s",
         "col_line": "الخط",
         "col_iface": "المنفذ",
@@ -316,10 +322,12 @@ TXT = {
         "col_icmp": "ping",
         "col_https": "HTTPS",
         "col_rtt": "الاستجابة",
+        "col_bw": "السعة",
         "col_port": "المنفذ الفيزيائي",
         "col_verdict": "الحكم",
         "verdict_ok": "سليم",
         "verdict_slow": "بطيء / غير مستقر",
+        "verdict_throttled": "مخنوق — انتهت الحصة؟",
         "verdict_blocked": "محجوب — انتهت الحصة؟",
         "verdict_down": "مقطوع",
         "verdict_port_down": "المنفذ مفصول",
@@ -333,6 +341,8 @@ TXT = {
         "res_fail": "✗ فشل",
         "res_none": "—",
         "rtt_fmt": "%(avg)s ms · %(loss)s%%",
+        "bw_fmt": "%s ميغابت",
+        "bw_over": "> %s ميغابت",
         "note_no_track": "المسار غير مربوط بأي فحص — لن يُسحب الخط تلقائياً إن انقطع.",
         "note_track_missing": "المسار مربوط بفحص غير موجود على الراوتر.",
         "note_track_not_icmp": "المسار مربوط بفحص ليس ICMP — هذا الإصدار يتجاهله ولا يسحب الخط. اربطه بفحص ICMP.",
@@ -342,6 +352,9 @@ TXT = {
         "note_crc": "أخطاء CRC على المنفذ: %s — علامة على مشكلة في الكابل.",
         "note_recent_down": "انقطع المنفذ فيزيائياً خلال آخر ٢٤ ساعة (%s).",
         "note_blocked": "ping يصل لكن HTTPS لا يصل: المزود يحجب التصفح، غالباً انتهت الحصة.",
+        "note_throttled": "كل الفحوص تنجح لكن السعة المقاسة %s ميغابت فقط — المزود يخنق الخط، "
+                          "غالباً انتهت حصته الشهرية: الرزمة الصغيرة تمرّ والتصفح لا يعمل.",
+        "note_no_bw": "تعذّر قياس السعة — يلزمه نجاح فحصَي الرزمة الصغيرة والكبيرة معاً.",
         "rep_title": "تقرير خطوط الإنترنت — %s",
         "rep_verdict": "الحكم",
         "rep_route": "التوزيع",
@@ -349,6 +362,9 @@ TXT = {
         "rep_https": "فحص HTTPS",
         "rep_live": "قياس مباشر",
         "rep_live_fmt": "%(recv)s/%(sent)s وصلت، فقد %(loss)s%%، المتوسط %(avg)s ms (%(min)s–%(max)s)",
+        "rep_bw": "السعة المقاسة",
+        "rep_bw_fmt": "%(bw)s (رزمة %(small)s بايت: %(rtt_small)s ms، "
+                      "ورزمة %(big)s بايت: %(rtt_big)s ms)",
         "rep_port": "المنفذ",
         "rep_gw": "البوابة",
         "rep_rate": "المعدل الآن ↓%s ↑%s",
@@ -363,10 +379,71 @@ TXT = {
         "ok_withdrawn": "أُخرج %s من التوزيع.",
         "ok_restored": "أُعيد %s إلى التوزيع.",
         "ok_checked": "فُحص %(n)d خط — سليم: %(ok)d، مشاكل: %(bad)d",
-        "warn_blocked_lines": "⚠ خط محجوب ما زال في التوزيع: %s",
+        "warn_blocked_lines": "⚠ خط محجوب أو مخنوق ما زال في التوزيع: %s",
         "auto_withdrew": "مراقبة تلقائية: أُخرج %s من التوزيع (HTTPS لا يعمل).",
+        "auto_withdrew_bw": "مراقبة تلقائية: أُخرج %(line)s من التوزيع (السعة %(bw)s ميغابت فقط).",
         "auto_restored": "مراقبة تلقائية: أُعيد %s إلى التوزيع (HTTPS عاد يعمل).",
+        "auto_restored_bw": "مراقبة تلقائية: أُعيد %(line)s إلى التوزيع (السعة عادت %(bw)s ميغابت).",
         "auto_error": "مراقبة تلقائية: %s",
+        "tab_vlans": "المتّصلون حسب الشبكة",
+        "vlan_hint": "اختر شبكة لترى كل جهاز عليها. الأساس هو جدول العناوين الفيزيائية في الراوتر، "
+                     "فيظهر حتى الجهاز الذي لم يحصل على عنوان بعد — وهو ما لا يُظهره جدول ARP.",
+        "vlan_pick": "الشبكة:",
+        "vlan_item": "VLAN %(vid)s",
+        "vlan_item_ip": "VLAN %(vid)s — %(ip)s/%(len)d",
+        "vlan_summary": "الواجهة %(iface)s%(desc)s · المنافذ: %(ports)s · المجمّع: %(pool)s",
+        "vlan_summary_l2": "شبكة بلا عنوان على الراوتر · المنافذ: %(ports)s",
+        "vlan_no_iface": "لا عنوان لهذه الشبكة على الراوتر، فلا مجمّع عناوين لها ولا جدول ARP: "
+                         "يظهر الجهاز بعنوانه الفيزيائي ومنفذه فقط.",
+        "vlan_pool_fmt": "%(used)d مستعمَل من %(total)d، ومتاح %(idle)d",
+        "vlan_pool_none": "لا مجمّع",
+        "vlan_ports_none": "لا منفذ",
+        "vlan_summary_sub": "الواجهة %(iface)s%(desc)s · شبكة موجَّهة: تصل موسومة على %(parent)s "
+                            "وتُنهى هنا، فلا منفذ تبديل لها ولا عناوين فيزيائية · المجمّع: %(pool)s",
+        "vlan_empty_quiet": "لا جهاز نشط على هذه الشبكة الآن: لا عنوان فيزيائي في جدول التبديل "
+                            "ولا مدخل في جدول ARP.",
+        "vlan_empty_noport": "لا منفذ على هذا الراوتر يحمل هذه الشبكة، فلا يمرّ به شيء منها: "
+                             "الشبكة معرَّفة في جدوله فقط. أضِفها إلى منفذ الوصلة إن أردته أن يراها.",
+        "vlan_empty_noswitch": "الشبكة على المنافذ %(ports)s لكنّ الراوتر لم يتعلّم منها أيّ عنوان "
+                               "فيزيائي: لا حركة تعبره فيها. غالباً بوّابتها جهاز آخر وأجهزتها "
+                               "تتخاطب فيما بينها دون المرور به.",
+        "vlan_kind_dhcp": "مؤجَّر",
+        "vlan_kind_bind": "محجوز",
+        "vlan_kind_static": "ثابت",
+        "vlan_kind_none": "بلا عنوان",
+        "vlan_noaddr_warn": "%(n)d من %(total)d جهازاً على هذه الشبكة بلا عنوان — "
+                            "راجع مجمّع العناوين والمصادقة.",
+        "col_port": "المنفذ",
+        "col_addr_kind": "نوع العنوان",
+        "col_presence": "الحضور",
+        "vlan_name_dev": "تسمية الجهاز",
+        "vlan_cut": "فصل المحدَّد",
+        "vlan_cut_ask": "فصل %(n)d جهازاً عن الشبكة؟ الجهاز يعود فور نجاح مصادقته من جديد.",
+        "vlan_cut_no_nac": "لا مصادقة على هذه الشبكة، فلا جلسة تُقطع. "
+                           "الفصل فيها يحتاج منع الحركة بقائمة وصول بعد تثبيت العنوان.",
+        "vlan_cut_done": "قُطعت %(ok)d جلسة من %(n)d.",
+        "vlan_cut_failed": "تعذّر قطع %s",
+        "vlan_open_ip": "فتح %s في المتصفح",
+        "vlan_named": "سُمّي %(mac)s: %(name)s",
+        "vlan_pick_row": "اختر صفّاً من الجدول أولاً.",
+        "col_vendor": "المُصنِّع",
+        "pres_active": "نشط",
+        "pres_seen": "يُرى في الشبكة",
+        "pres_lease": "محجوز فقط",
+        "vendor_random": "عنوان عشوائي",
+        "vendor_private": "مُصنِّع غير معلن",
+        "vlan_lease_note": "%(n)d عنواناً محجوزاً لأجهزة غير حاضرة الآن؛ تبقى محجوزة حتى ينتهي إيجارها.",
+        "col_other_nets": "شبكات أخرى",
+        "vlan_scan": "فحص التداخل",
+        "vlan_scan_first": "حدّث قائمة الشبكات أولاً.",
+        "vlan_scan_none": "لا جهاز يحمل عنواناً في أكثر من شبكة واحدة (فُحصت %(nets)d شبكة).",
+        "vlan_scan_done": "%(n)d جهازاً يحمل عنواناً في أكثر من شبكة (فُحصت %(nets)d شبكة) — "
+                          "انظر خانة «شبكات أخرى».",
+        "vlan_scan_tight": "مجمّعات أوشكت على النفاد: %s.",
+        "vlan_scan_tight_one": "VLAN %(vid)s (%(idle)d متاح من %(usable)d)",
+        "vlan_scan_here": "%(n)d من أجهزة هذه الشبكة يحمل عنواناً في شبكة أخرى أيضاً: "
+                          "غالباً تصله هذه الشبكة غير موسومة عبر وصلة التبديل.",
+        "col_auth": "المصادقة",
         "tab_mgmt": "أجهزة الإدارة",
         "mgmt_hint": "جهاز بعينه يدخل إدارة الراوتر بـ SSH من شبكته العادية دون شبكة الإدارة. "
                      "الراوتر يقيّد الإدارة بالعنوان لا بالماك، فيثبّت البرنامج للجهاز عنواناً بربط DHCP، "
@@ -582,13 +659,14 @@ TXT = {
         "tab_wan": "Internet Lines",
         "wan_hint": "Reads each line's state from the router: the ping probe that makes the router drop a dead line, "
                     "the HTTPS probe that reveals an exhausted quota (the ISP lets ping through but blocks websites), "
-                    "plus a live latency measurement and the port health.",
+                    "a big-packet bandwidth measurement that catches a throttled quota every probe still passes, "
+                    "plus latency and the port health.",
         "wan_check": "Check Lines Now",
         "wan_withdraw": "Take Line Out of Rotation",
         "wan_restore": "Put Line Back",
         "wan_copy": "Copy Report",
         "wan_auto": "Monitor automatically every minute",
-        "wan_auto_withdraw": "Take blocked lines out automatically and put them back when they recover",
+        "wan_auto_withdraw": "Take blocked or throttled lines out automatically and put them back when they recover",
         "wan_last": "Last check: %s",
         "col_line": "Line",
         "col_iface": "Interface",
@@ -597,10 +675,12 @@ TXT = {
         "col_icmp": "ping",
         "col_https": "HTTPS",
         "col_rtt": "Latency",
+        "col_bw": "Bandwidth",
         "col_port": "Physical Port",
         "col_verdict": "Verdict",
         "verdict_ok": "Healthy",
         "verdict_slow": "Slow / Unstable",
+        "verdict_throttled": "Throttled — quota used up?",
         "verdict_blocked": "Blocked — quota used up?",
         "verdict_down": "Down",
         "verdict_port_down": "Port disconnected",
@@ -614,6 +694,8 @@ TXT = {
         "res_fail": "✗ Failed",
         "res_none": "—",
         "rtt_fmt": "%(avg)s ms · %(loss)s%%",
+        "bw_fmt": "%s Mbit/s",
+        "bw_over": "> %s Mbit/s",
         "note_no_track": "The route is not tied to any probe — the line will not be dropped if it goes down.",
         "note_track_missing": "The route is tied to a probe that does not exist on the router.",
         "note_track_not_icmp": "The route is tied to a non-ICMP probe — this firmware ignores it and never drops the line. Tie it to an ICMP probe.",
@@ -623,6 +705,9 @@ TXT = {
         "note_crc": "CRC errors on the port: %s — a sign of a cabling problem.",
         "note_recent_down": "The port physically went down within the last 24 hours (%s).",
         "note_blocked": "ping gets through but HTTPS does not: the ISP is blocking browsing, most likely the quota is used up.",
+        "note_throttled": "Every probe passes, yet the measured bandwidth is only %s Mbit/s — the ISP is throttling this "
+                          "line, most likely its monthly quota is used up: a small packet gets through, browsing does not.",
+        "note_no_bw": "Bandwidth could not be measured — it needs both the small and the big ping to answer.",
         "rep_title": "Internet lines report — %s",
         "rep_verdict": "Verdict",
         "rep_route": "Rotation",
@@ -630,6 +715,9 @@ TXT = {
         "rep_https": "HTTPS probe",
         "rep_live": "Live measurement",
         "rep_live_fmt": "%(recv)s/%(sent)s received, %(loss)s%% loss, average %(avg)s ms (%(min)s–%(max)s)",
+        "rep_bw": "Measured bandwidth",
+        "rep_bw_fmt": "%(bw)s (%(small)s-byte packet: %(rtt_small)s ms, "
+                      "%(big)s-byte packet: %(rtt_big)s ms)",
         "rep_port": "Port",
         "rep_gw": "gateway",
         "rep_rate": "current rate ↓%s ↑%s",
@@ -644,10 +732,74 @@ TXT = {
         "ok_withdrawn": "%s was taken out of rotation.",
         "ok_restored": "%s is back in rotation.",
         "ok_checked": "Checked %(n)d line(s) — healthy: %(ok)d, problems: %(bad)d",
-        "warn_blocked_lines": "⚠ A blocked line is still in rotation: %s",
+        "warn_blocked_lines": "⚠ A blocked or throttled line is still in rotation: %s",
         "auto_withdrew": "Auto monitor: %s taken out of rotation (HTTPS is failing).",
+        "auto_withdrew_bw": "Auto monitor: %(line)s taken out of rotation (only %(bw)s Mbit/s).",
         "auto_restored": "Auto monitor: %s put back into rotation (HTTPS works again).",
+        "auto_restored_bw": "Auto monitor: %(line)s put back into rotation (%(bw)s Mbit/s again).",
         "auto_error": "Auto monitor: %s",
+        "tab_vlans": "Clients by Network",
+        "vlan_hint": "Pick a network to see every device on it. The list is built from the router's "
+                     "MAC address table, so even a device that has not got an address yet shows up — "
+                     "which the ARP table never reveals.",
+        "vlan_pick": "Network:",
+        "vlan_item": "VLAN %(vid)s",
+        "vlan_item_ip": "VLAN %(vid)s — %(ip)s/%(len)d",
+        "vlan_summary": "Interface %(iface)s%(desc)s · Ports: %(ports)s · Pool: %(pool)s",
+        "vlan_summary_l2": "No IP interface on the router · Ports: %(ports)s",
+        "vlan_no_iface": "This network has no address on the router, so it has no DHCP pool and no "
+                         "ARP table: devices show with their MAC and port only.",
+        "vlan_pool_fmt": "%(used)d used of %(total)d, %(idle)d free",
+        "vlan_pool_none": "no pool",
+        "vlan_ports_none": "no port",
+        "vlan_summary_sub": "Interface %(iface)s%(desc)s · Routed network: it arrives tagged on "
+                            "%(parent)s and terminates here, so it has no switch port and no MAC "
+                            "entries · Pool: %(pool)s",
+        "vlan_empty_quiet": "No device is active on this network right now: nothing in the MAC "
+                            "table and nothing in the ARP table.",
+        "vlan_empty_noport": "No port on this router carries this network, so nothing of it passes "
+                             "through: the VLAN exists in its table only. Add it to the uplink port "
+                             "if you want the router to see it.",
+        "vlan_empty_noswitch": "The network is on ports %(ports)s but the router has learned no MAC "
+                               "address from it: no traffic crosses it here. Its gateway is most "
+                               "likely another device and its clients talk among themselves.",
+        "vlan_kind_dhcp": "Leased",
+        "vlan_kind_bind": "Reserved",
+        "vlan_kind_static": "Static",
+        "vlan_kind_none": "No address",
+        "vlan_noaddr_warn": "%(n)d of %(total)d devices on this network have no address — "
+                            "check the address pool and authentication.",
+        "col_port": "Port",
+        "col_addr_kind": "Address type",
+        "col_presence": "Presence",
+        "vlan_name_dev": "Name this device",
+        "vlan_cut": "Disconnect selected",
+        "vlan_cut_ask": "Disconnect %(n)d device(s)? Each returns as soon as it authenticates again.",
+        "vlan_cut_no_nac": "This network has no authentication, so there is no session to cut. "
+                           "Disconnecting here needs an ACL after pinning the address.",
+        "vlan_cut_done": "%(ok)d of %(n)d sessions cut.",
+        "vlan_cut_failed": "Could not cut %s",
+        "vlan_open_ip": "Open %s in the browser",
+        "vlan_named": "%(mac)s named: %(name)s",
+        "vlan_pick_row": "Select a row in the table first.",
+        "col_vendor": "Vendor",
+        "pres_active": "Active",
+        "pres_seen": "Seen on the network",
+        "pres_lease": "Address reserved only",
+        "vendor_random": "Randomised MAC",
+        "vendor_private": "Undisclosed vendor",
+        "vlan_lease_note": "%(n)d addresses are reserved for devices that are not here now; they stay reserved until their lease ends.",
+        "col_other_nets": "Other networks",
+        "vlan_scan": "Cross-network scan",
+        "vlan_scan_first": "Refresh the network list first.",
+        "vlan_scan_none": "No device holds an address on more than one network (%(nets)d networks scanned).",
+        "vlan_scan_done": "%(n)d devices hold an address on more than one network "
+                          "(%(nets)d networks scanned) — see the \"Other networks\" column.",
+        "vlan_scan_tight": "Pools close to exhaustion: %s.",
+        "vlan_scan_tight_one": "VLAN %(vid)s (%(idle)d free of %(usable)d)",
+        "vlan_scan_here": "%(n)d devices on this network also hold an address elsewhere: "
+                          "this network most likely reaches them untagged over the switch trunk.",
+        "col_auth": "Authentication",
         "tab_mgmt": "Management Devices",
         "mgmt_hint": "A specific device reaches router management over SSH from its normal network "
                      "without joining the management network. The router restricts management by address, "
@@ -1285,12 +1437,20 @@ class RouterSession(object):
                 ln["phys"] = phys
                 ln["port"] = info
             ln["ping"] = None
+            ln["ping_big"] = None
+            ln["kbps"] = None
             probe = (ln["icmp"] or ln["tcp"] or {}).get("dest")
             if live_ping and probe and ln.get("iface_up"):
                 # -nexthop يجبر ping على بوابة الخط حتى لو كان خارج التوزيع،
                 # والمنفذ المفصول نتخطاه كي لا ننتظر مهلة كل رزمة بلا فائدة
                 ln["ping"] = parse_ping(self.send(
                     "ping -c 10 -t 1000 -nexthop %s %s" % (ln["gw"], probe), timeout=60))
+                # الرزمة الكبيرة وحدها تكشف الخط المخنوق: الصغيرة تمر من أضيق
+                # خنق فتُظهره سليماً. -s فقط، بلا -f، كي لا تبدو التجزئة فقداً
+                ln["ping_big"] = parse_ping(self.send(
+                    "ping -c 10 -s %d -t 1000 -nexthop %s %s"
+                    % (WAN_BIG_BYTES, ln["gw"], probe), timeout=60))
+                ln["kbps"] = estimate_kbps(ln["ping"], ln["ping_big"])
             classify_line(ln)
         return lines
 
@@ -1370,6 +1530,97 @@ class RouterSession(object):
             if not (mac12 and mac12 in st["arp_dynamic"]):
                 st["vlan_ports"] = parse_vlan_ports(self.send("display vlan %s" % vid, timeout=30))
         return st
+
+    # -- الشبكات (VLAN) ومن عليها ---------------------------------------------
+
+    def read_vlans(self):
+        """
+        كل شبكات الجهاز، ومعها واجهة العنونة إن كانت لها واحدة.
+        قائمة الشبكات ليست قائمة الـVlanif: أكثر الشبكات هنا بلا عنوان
+        (docs/router/lessons-learned.md#L16).
+        """
+        vlans = parse_vlan_list(self.send("display vlan", timeout=40))
+        nets = {}
+        for row in parse_ip_brief(self.send("display ip interface brief", timeout=30)):
+            m = re.match(r"^Vlanif(\d+)$", row["iface"])
+            if m:
+                nets[m.group(1)] = dict(row, vid=m.group(1))
+            elif "." in row["iface"]:
+                # واجهة فرعية: رقم شبكتها من dot1q لا من لاحقة الاسم
+                vid = parse_dot1q_vid(self.send(
+                    "display current-configuration interface %s" % row["iface"], timeout=30))
+                if vid:
+                    nets[vid] = dict(row, vid=vid)
+        for v in vlans:
+            n = nets.get(v["vid"]) or {}
+            v["iface"] = n.get("iface", "")
+            v["ip"] = n.get("ip", "")
+            v["len"] = n.get("len", 0)
+        return vlans
+
+    def read_vlan_clients(self, vid, iface=""):
+        """
+        من على الشبكة vid. كل الأوامر للقراءة فقط.
+        الأساس جدول العناوين الفيزيائية لأنه يرى الجهاز الذي لم يأخذ عنواناً،
+        ثم نُثريه بـARP وعقود DHCP وجلسات المصادقة حين تكون للشبكة واجهة.
+        """
+        st = {"vid": str(vid), "iface": iface, "desc": "", "ports": [],
+              "pool": None, "rows": [], "nac": False}
+        mac_rows = parse_mac_table(self.send("display mac-address", timeout=90))
+        st["ports"] = parse_vlan_ports(self.send("display vlan %s" % vid, timeout=30))
+        arp, leases = {}, {}
+        if iface:
+            cfg = self.send("display current-configuration interface %s" % iface, timeout=30)
+            m = re.search(r"^\s*description (.+?)\s*$", cfg or "", re.M)
+            st["desc"] = m.group(1) if m else ""
+            # بلا authentication-profile لا جلسة للجهاز، فلا شيء يُقطع
+            st["nac"] = parse_interface_nac(cfg)
+            arp = parse_arp_table(self.send("display arp interface %s" % iface, timeout=40))
+            pool = self.send("display ip pool interface %s used" % iface, timeout=60)
+            st["pool"] = parse_pool_stats(pool)
+            leases = parse_pool_leases(pool)
+        online = {}
+        for r in parse_online(self.read_online()):
+            mac12 = normalize_mac(r["mac"]) if r["mac"] else None
+            if mac12:
+                online[mac12] = r
+        st["rows"] = vlan_clients(mac_rows, arp, leases, online, vid)
+        return st
+
+    def scan_pools(self, nets):
+        """
+        يقرأ مجمَّع العناوين لكل شبكة لها واجهة. أمر قراءة واحد لكل شبكة،
+        ومنه يُعرف من يحمل عنواناً في أكثر من شبكة (جهاز يتسرّب من شبكته إلى
+        غيرها) ومن قارب مجمَّعه على النفاد. الشبكة بلا واجهة لا مجمَّع لها
+        فتُتخطّى. يعيد [{"vid", "iface", "pool", "leases"}].
+        """
+        out = []
+        for v in nets:
+            iface = v.get("iface")
+            if not iface:
+                continue
+            pool = self.send("display ip pool interface %s used" % iface, timeout=60)
+            out.append({"vid": str(v["vid"]), "iface": iface,
+                        "pool": parse_pool_stats(pool),
+                        "leases": parse_pool_leases(pool)})
+        return out
+
+    def cut_users(self, macs):
+        """
+        يقطع جلسات المصادقة لعناوين فيزيائية بعينها. الأمر لا يُقبل إلا في
+        عرض aaa (docs/router/command-reference.md)، ويعمل على المصادَق عليهم
+        وحدهم: شبكة بلا authentication-profile لا جلسة فيها تُقطع.
+        يعيد {ماك: نص الردّ} كي يُعرض الفشل بدل أن يُبتلع.
+        """
+        res = {}
+        self._system_view()
+        self.send("aaa")
+        for mac12 in macs:
+            res[mac12] = self.send("cut access-user mac-address %s" % mac_dashed(mac12),
+                                   timeout=40)
+        self.send("quit")
+        self.send("quit")
+        return res
 
     def local_address(self):
         """عنوان هذا الجهاز كما يراه الراوتر — كي لا يحذف المستخدم باب دخوله هو."""
@@ -1926,6 +2177,35 @@ def build_wan_lines(routes, nqa, brief, withdrawn=None):
 WAN_SLOW_LOSS = 10          # نسبة فقد (%) تجعل الخط «غير مستقر»
 WAN_SLOW_RTT = 250          # متوسط زمن استجابة (ms) يجعل الخط «بطيئاً»
 
+# قياس السعة: رزمة صغيرة ورزمة كبيرة، والفارق بين أدنى زمنيهما هو زمن دفع
+# البايتات الزائدة عبر الأنبوب، فيعطينا سعته. انظر docs/router/lessons-learned.md#L15
+WAN_SMALL_BYTES = 56        # حجم ping الافتراضي على الجهاز
+WAN_BIG_BYTES = 1400        # أكبر حجم يبقى تحت MTU 1500 بلا تجزئة
+WAN_MIN_KBPS = 2000         # تحت هذا يُعدّ الخط مخنوقاً (انتهت حصته)
+WAN_OK_KBPS = 4000          # وفوق هذا وحده يُعاد إلى التوزيع — عتبتان تمنعان التأرجح
+WAN_BW_CAP_KBPS = 50000     # سقف التقدير: فوقه يصير الفارق أصغر من دقة القياس
+
+
+def estimate_kbps(small, big):
+    """
+    يقدّر سعة الخط بالكيلوبت/ثانية من قياسَي ping بحجمين.
+
+    نستعمل أدنى زمن لا متوسطه: الأدنى هو زمن الدفع الصافي بلا طوابير.
+
+    وللقياس ضجيج: على خط سليم قرأنا أدنى ٥٠ ms للرزمة الصغيرة و٣٠ ms
+    للكبيرة — فارق سالب لا معنى له. لذلك لا نصدّق فارقاً أصغر من تشتّت
+    الرزمة الصغيرة نفسها (max-min)، ونعدّ الخط عندها سريعاً. الثمن أننا
+    نتغاضى عن خنق طفيف، والمكسب أننا لا نُخرج خطاً سليماً بضجيج قياس.
+    """
+    if not small or not big or not small.get("min") or not big.get("min"):
+        return None
+    delta = big["min"] - small["min"]
+    noise = (small.get("max") or small["min"]) - small["min"]
+    if delta <= noise:
+        return WAN_BW_CAP_KBPS
+    bits = 2.0 * (WAN_BIG_BYTES - WAN_SMALL_BYTES) * 8
+    return min(WAN_BW_CAP_KBPS, int(bits / (delta / 1000.0) / 1000.0))
+
 
 def classify_line(ln):
     """
@@ -1934,6 +2214,7 @@ def classify_line(ln):
       port_down  المنفذ مفصول أو لا عنوان له
       down       فحص ping فشل — الراوتر يسحبه بنفسه
       blocked    ping يعمل وHTTPS لا — انتهت الحصة أو المزود يحجب
+      throttled  كل الفحوص تنجح لكن السعة المقاسة تحت الحد — حصة مخنوقة
       slow       يعمل بفقد أو تأخير مرتفع
       ok         سليم
       unknown    لا فحوص تكفي للحكم
@@ -1949,6 +2230,9 @@ def classify_line(ln):
         health = "down"
     elif tcp is not None and not tcp["ok"]:
         health = "blocked"
+    elif ln.get("kbps") is not None and ln["kbps"] < WAN_MIN_KBPS:
+        # يسبق slow لأنه سببه لا عَرَضه: الفقد والتأخير نتيجتان للخنق
+        health = "throttled"
     elif ping and (ping["recv"] == 0 or (ping["loss"] or 0) >= WAN_SLOW_LOSS
                    or (ping["avg"] or 0) >= WAN_SLOW_RTT):
         health = "down" if ping["recv"] == 0 and icmp is None else "slow"
@@ -2139,6 +2423,209 @@ def parse_pool_used(output):
 def parse_interface_nac(output):
     """هل على الـVlanif مصادقة (authentication-profile)؟ الجهاز غير الموثوق لا يعبرها."""
     return bool(re.search(r"^\s*authentication-profile \S+", output or "", re.M))
+
+
+def parse_vlan_list(output):
+    """
+    يحلل display vlan المجرّد: كل شبكات الجهاز لا الشبكات ذات العنوان فقط.
+        VLAN ID Type         Status   MAC Learning ...
+        20      common       enable   enable       ...
+    [{"vid", "type", "status"}] مرتّبة رقمياً.
+    """
+    vlans = []
+    for line in (output or "").splitlines():
+        m = re.match(r"^\s*(\d+)\s+(\S+)\s+(\S+)\s+\S+", line)
+        if m and m.group(2) in ("common", "super", "sub"):
+            vlans.append({"vid": m.group(1), "type": m.group(2), "status": m.group(3)})
+    return sorted(vlans, key=lambda v: int(v["vid"]))
+
+
+def mac_is_random(mac12):
+    """
+    هل العنوان الفيزيائي مُولَّد عشوائياً؟ البت الثاني من أول بايت (locally
+    administered) يرفعه الجهاز حين يخفي عنوانه الحقيقي — وهو سلوك الهواتف
+    الحديثة افتراضياً. مثل هذا العنوان يتبدّل بين الجلسات، فلا يصلح لحجز
+    عنوان ولا لقائمة ثقة.
+    """
+    try:
+        return bool(int(mac12[1], 16) & 0x2)
+    except (ValueError, IndexError, TypeError):
+        return False
+
+
+_OUI_TABLE = None
+
+
+def load_oui():
+    """{بادئة سداسية عشرية: اسم المُصنِّع}. يُقرأ مرة واحدة ويُحفظ في الذاكرة."""
+    global _OUI_TABLE
+    if _OUI_TABLE is None:
+        _OUI_TABLE = {}
+        for d in OUI_DIRS:
+            path = os.path.join(d, *OUI_FILE.split("/"))
+            try:
+                with open(path, "rb") as f:
+                    text = zlib.decompress(f.read()).decode("utf-8")
+            except Exception:
+                continue
+            for line in text.splitlines():
+                if "\t" in line:
+                    pref, name = line.split("\t", 1)
+                    _OUI_TABLE[pref] = name
+            break
+    return _OUI_TABLE
+
+
+def mac_vendor(mac12):
+    """
+    اسم المُصنِّع من بادئة العنوان. IEEE تخصّص بثلاثة أطوال — ٣٦ بت للشركات
+    الصغيرة و٢٨ و٢٤ بت — فنجرّب الأطول أولاً وإلا نسبنا الجهاز إلى الشركة
+    الكبرى التي اشترت الكتلة. العنوان العشوائي لا مُصنِّع له أصلاً.
+    بادئة مسجَّلة باسم مخفي تعود بـ"\x00" كي تميّزها الواجهة عن غير المسجَّلة.
+    """
+    if not mac12 or mac_is_random(mac12):
+        return ""
+    table = load_oui()
+    up = mac12.upper()
+    for n in (9, 7, 6):
+        name = table.get(up[:n])
+        if name:
+            return name
+    return ""
+
+
+def mac_oui(mac12):
+    """أول ثلاثة بايتات: رمز المُصنِّع كما تنشره IEEE. 00005e -> 00:00:5E"""
+    return ":".join(mac12[i:i + 2] for i in range(0, 6, 2)).upper() if mac12 else ""
+
+
+def parse_dot1q_vid(output):
+    """
+    رقم الشبكة الذي تُنهيه واجهة فرعية: dot1q termination vid 60 -> "60".
+    اللاحقة .60 في اسم الواجهة عُرف محلي لا قاعدة، فالمصدر هو هذا السطر.
+    """
+    m = re.search(r"^\s*dot1q termination vid (\d+)", output or "", re.M)
+    return m.group(1) if m else ""
+
+
+def parse_mac_table(output):
+    """
+    يحلل display mac-address:
+        0000-5e00-5371      20/-/-/-             GE0/0/2      dynamic   public
+    المدخل لكل (ماك، شبكة) لا لكل جهاز — الماك نفسه قد يظهر في شبكتين
+    (docs/router/lessons-learned.md#L16). [{"mac", "vid", "port", "kind"}]
+    """
+    rows = []
+    for m in re.finditer(r"^\s*(%s)\s+(\d+)/\S*\s+(\S+)\s+(\S+)" % _MAC_DASH_RE,
+                         output or "", re.M):
+        rows.append({"mac": normalize_mac(m.group(1)), "vid": m.group(2),
+                     "port": expand_iface(m.group(3)), "kind": m.group(4)})
+    return rows
+
+
+def parse_pool_leases(output):
+    """
+    عقود العنونة من display ip pool interface VlanifN used مفهرسة بالماك:
+        199      10.0.1.200        0000-5e00-5365    DHCP      85619   Used
+    {ماك: {"ip", "left", "type", "status"}}. مجمّع بلا عقود لا يطبع الجدول
+    أصلاً فيعود القاموس فارغاً (docs/router/lessons-learned.md#L16).
+    """
+    leases = {}
+    for m in re.finditer(r"^\s*\d+\s+(%s)\s+(%s)\s+(\S+)\s+(\S+)\s+(\S+)"
+                         % (_IP_RE, _MAC_DASH_RE), output or "", re.M):
+        leases[normalize_mac(m.group(2))] = {"ip": m.group(1), "type": m.group(3),
+                                             "left": m.group(4), "status": m.group(5)}
+    return leases
+
+
+def parse_pool_stats(output):
+    """أرقام المجمّع من سطر Address Statistic: {"total", "used", "idle", ...} أو None."""
+    body = (output or "").split("Address Statistic", 1)
+    if len(body) < 2:
+        return None
+    body = body[1]
+    nums = {}
+    for key in ("Total", "Used", "Idle", "Expired", "Conflict", "Disabled"):
+        m = re.search(r"%s\s*:(\d+)" % key, body)
+        if m:
+            nums[key.lower()] = int(m.group(1))
+    return nums or None
+
+
+def vlan_clients(mac_rows, arp, leases, online, vid):
+    """
+    يدمج الجداول في صفّ واحد لكل جهاز حاضر على الشبكة vid.
+    الحضور يشهد به مصدران: جدول العناوين الفيزيائية، وهو وحده يرى الجهاز الذي
+    لم يحصل على عنوان في شبكة مبدَّلة؛ وجدول ARP، وهو وحده يرى أجهزة شبكةٍ
+    موجَّهة عبر واجهة فرعية لأن وسمها يُنهى فلا يُبدَّل. ثم تُثري العقود
+    وجلسات المصادقة كل ماك. انظر docs/router/lessons-learned.md#L16
+    العقود لا تُنشئ صفوفاً: عقد جهاز غادر يبقى محجوزاً أياماً، والجدول للحاضرين.
+    """
+    seen = {}
+    for r in mac_rows:
+        if r["vid"] == str(vid):
+            seen[r["mac"]] = r["port"]
+    live = {}
+    for mac, a in arp.items():
+        # مدخل الواجهة نفسها (TYPE = I) هو عنوان البوّابة لا جهاز متصل
+        if (a.get("type") or "").startswith("I"):
+            continue
+        live[mac] = a
+        seen.setdefault(mac, a.get("iface", ""))
+    # عقدٌ بلا أثر حيّ = عنوان محجوز لجهاز غائب. يُعرض ليُعرف أنه يستهلك
+    # من المجمَّع دون أن يكون أحد هنا.
+    for mac in leases:
+        seen.setdefault(mac, "")
+
+    rows = []
+    for mac, port in seen.items():
+        lease = leases.get(mac) or {}
+        ip = (arp.get(mac) or {}).get("ip") or lease.get("ip") or ""
+        presence = "active" if mac in live else ("seen" if port else "lease")
+        if lease.get("status", "").lower().startswith("static"):
+            kind = "bind"
+        elif lease:
+            kind = "dhcp"
+        elif ip:
+            kind = "static"
+        else:
+            kind = "none"
+        rows.append({"mac": mac, "ip": ip, "port": port, "kind": kind,
+                     "presence": presence, "random": mac_is_random(mac),
+                     "left": lease.get("left", ""),
+                     "auth": (online.get(mac) or {}).get("status", "")})
+    rows.sort(key=lambda r: (_ip_int(r["ip"]) if r["ip"] else 1 << 32, r["mac"]))
+    return rows
+
+
+def overlap_report(scans, tight=0.1):
+    """
+    يقارن عقود كل الشبكات ببعضها. عقدان لماك واحد في شبكتين يعنيان أن الجهاز
+    وصل الشبكتين معاً: إمّا انتقل بينهما، وإمّا — وهو الأهمّ — تصله إحداهما
+    غير موسومة عبر وصلة تبديل فيأخذ منها عنواناً وهو ليس من أهلها
+    (docs/router/lessons-learned.md#L16).
+    يعيد {"dups": {ماك: [{"vid","ip"}...]}, "tight": [{"vid","idle","usable"}...]}
+    """
+    where = {}
+    for s in scans:
+        for mac, lease in (s.get("leases") or {}).items():
+            where.setdefault(mac, []).append({"vid": s["vid"], "ip": lease.get("ip", "")})
+    dups = {}
+    for mac, seen in where.items():
+        if len({e["vid"] for e in seen}) > 1:
+            dups[mac] = sorted(seen, key=lambda e: int(e["vid"]))
+    low = []
+    for s in scans:
+        p = s.get("pool") or {}
+        # المتاح الحقيقي هو الكلّي ناقص المستبعَد بـ excluded-ip-address
+        usable = (p.get("total") or 0) - (p.get("disabled") or 0)
+        idle = p.get("idle")
+        if idle is None or usable <= 0:
+            continue
+        if idle <= usable * tight:
+            low.append({"vid": s["vid"], "idle": idle, "usable": usable})
+    low.sort(key=lambda e: int(e["vid"]))
+    return {"dups": dups, "tight": low}
 
 
 def vlanif_networks(brief):
@@ -2445,7 +2932,7 @@ class LocalDB(object):
     def __init__(self, path=None, on_save=None):
         self.path = path or DB_FILE
         self.on_save = on_save
-        self.data = {"devices": {}, "portal": {}, "mgmt": {}, "history": []}
+        self.data = {"devices": {}, "portal": {}, "mgmt": {}, "names": {}, "history": []}
         self.load()
 
     def load(self):
@@ -2453,7 +2940,7 @@ class LocalDB(object):
             try:
                 with open(self.path, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
-                for k in ("devices", "portal", "mgmt", "history"):
+                for k in ("devices", "portal", "mgmt", "names", "history"):
                     if k in loaded:
                         self.data[k] = loaded[k]
             except Exception:
@@ -2479,6 +2966,37 @@ class LocalDB(object):
 
     def device(self, mac12):
         return self.data["devices"].get(mac12)
+
+    def name_of(self, mac12):
+        """
+        الاسم الذي نعرفه لهذا الماك. سجلّ الأجهزة الموثوقة أولى لأنه الأدقّ،
+        ثم مخزن الأسماء الحرّ الذي يسمّي جهازاً رأيناه في الشبكة بلا توثيق.
+        """
+        dev = self.data["devices"].get(mac12) or {}
+        if dev.get("name"):
+            return dev["name"]
+        return (self.data["names"].get(mac12) or {}).get("name", "")
+
+    def note_of(self, mac12):
+        dev = self.data["devices"].get(mac12) or {}
+        return dev.get("note") or (self.data["names"].get(mac12) or {}).get("note", "")
+
+    def set_name(self, mac12, name, note=""):
+        """
+        تسمية جهاز رأيناه في الشبكة. لا تلمس الراوتر ولا تجعله موثوقاً؛
+        اسم فارغ يحذف السجل كي لا يتضخّم الملف بأسماء ألغاها المستخدم.
+        """
+        if mac12 in self.data["devices"]:
+            return self.set_device_meta(mac12, name, note)
+        if not name and not note:
+            self.data["names"].pop(mac12, None)
+        else:
+            rec = self.data["names"].setdefault(mac12, {})
+            rec["name"] = name
+            rec["note"] = note
+            rec.setdefault("added", now_stamp())
+            rec["seen"] = now_stamp()
+        self.save()
 
     def upsert_device(self, mac12, name, group, note=""):
         d = self.data["devices"].setdefault(mac12, {})
@@ -2847,8 +3365,13 @@ class App(tk.Tk):
         self.wan_lines = []
         self.mgmt_state = None
         self.mgmt_rows = []
+        self.vlans = []
+        self.vlan_state = None
+        self.vlan_vid = ""
+        self._vlan_warn = ""
         self._wan_after = None
         self._wan_streak = {}
+        self._wan_bw_streak = {}       # تتابع قرارات السعة وحدها، فهي تُقاس أندر
         self.settings["withdrawn_lines"] = dict(self.settings.get("withdrawn_lines") or {})
 
         self._build_style()
@@ -3180,7 +3703,7 @@ class App(tk.Tk):
         self.nb = ttk.Notebook(self)
         self.nb.pack(fill="both", expand=True, padx=16, pady=(0, 10))
 
-        builders = [self._tab_devices, self._tab_portal, self._tab_online,
+        builders = [self._tab_devices, self._tab_portal, self._tab_online, self._tab_vlans,
                     self._tab_mgmt, self._tab_wan, self._tab_groups, self._tab_settings, self._tab_log]
         # Tk يرصف التبويبات من اليسار دائماً. فلنبنِها بالعكس في العربية
         # كي يقع التبويب الأول في أقصى اليمين حيث تبدأ القراءة.
@@ -3193,10 +3716,21 @@ class App(tk.Tk):
             self.nb.select(self._first_tab)
         except Exception:
             pass
+        self.nb.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+    def _on_tab_changed(self, _ev=None):
+        """تبويب الشبكات يقرأ قائمته عند أول فتح فقط — كي لا يبطئ الاتصال."""
+        try:
+            cur = self.nb.nametowidget(self.nb.select())
+        except Exception:
+            return
+        if cur is getattr(self, "_vlan_tab", None) and not self.vlans \
+                and self.router.connected:
+            self.on_refresh_vlans()
 
     # ---- تبويب الأجهزة الموثوقة -------------------------------------------
 
-    def _make_tree(self, parent, cols, heads, widths, height=None):
+    def _make_tree(self, parent, cols, heads, widths, height=None, multi=False):
         """
         جدول بمظهر موحّد. في العربية نعكس ترتيب العرض عبر displaycolumns
         لا عبر قلب الأعمدة نفسها — فتبقى قيم الصفوف على ترتيبها المنطقي
@@ -3205,7 +3739,8 @@ class App(tk.Tk):
         wrap = ttk.Frame(parent, style="Card.TFrame")
         wrap.pack(fill="both", expand=True)
 
-        kw = {"columns": cols, "show": "headings", "selectmode": "browse"}
+        kw = {"columns": cols, "show": "headings",
+              "selectmode": "extended" if multi else "browse"}
         if height:
             kw["height"] = height
         tv = ttk.Treeview(wrap, **kw)
@@ -3462,6 +3997,61 @@ class App(tk.Tk):
         self.tv_on.bind("<Double-1>", lambda e: self.on_trust_online())
         self.tv_on._menu_actions = [(self.T["add_online"], self.on_trust_online)]
 
+    # ---- تبويب المتّصلين حسب الشبكة -----------------------------------------
+
+    def _tab_vlans(self):
+        f = self._tab_frame(self.T["tab_vlans"])
+        self._vlan_tab = f
+
+        lbl_hint = ttk.Label(f, text=self.T["vlan_hint"], style="Card.TLabel",
+                             justify=self._justify())
+        lbl_hint.pack(anchor=self._anchor(), fill="x", pady=(0, 10))
+        self._wrap(lbl_hint, f)
+
+        bar = ttk.Frame(f, style="Card.TFrame")
+        bar.pack(fill="x", pady=(0, 8))
+        p = self._side()
+        q = self._side(False)
+        ttk.Label(bar, text=self.T["vlan_pick"], style="Card.TLabel").pack(side=p, padx=(0, 6))
+        self.v_vlan = tk.StringVar(value="")
+        self.cb_vlan = ttk.Combobox(bar, textvariable=self.v_vlan, state="readonly",
+                                    width=26, values=[])
+        self.cb_vlan.pack(side=p)
+        self.cb_vlan.bind("<<ComboboxSelected>>", lambda e: self.on_pick_vlan())
+        ttk.Button(bar, text=self.T["refresh"], style="Accent.TButton",
+                   command=self.on_refresh_vlans).pack(side=p, padx=6)
+        ttk.Button(bar, text=self.T["vlan_name_dev"],
+                   command=self.on_name_vlan_device).pack(side=p)
+        ttk.Button(bar, text=self.T["vlan_cut"], style="Danger.TButton",
+                   command=self.on_cut_vlan_devices).pack(side=p, padx=6)
+        ttk.Button(bar, text=self.T["vlan_scan"],
+                   command=self.on_scan_overlap).pack(side=p)
+        ttk.Button(bar, text=self.T["export"],
+                   command=lambda: self.on_export("vlans")).pack(side=q)
+
+        self.lbl_vlan_sum = ttk.Label(f, text="", style="Muted.TLabel",
+                                      background=C["surface"], justify=self._justify())
+        self.lbl_vlan_sum.pack(anchor=self._anchor(), fill="x", pady=(0, 10))
+        self._wrap(self.lbl_vlan_sum, f)
+
+        self.v_find_vlan = tk.StringVar(value="")
+        self.lbl_count_vlan = self._search_bar(f, self.v_find_vlan, self._refresh_vlan_table)
+
+        self.tv_vlan = self._make_tree(
+            f, ("ip", "mac", "name", "vendor", "port", "kind", "presence", "auth", "other"),
+            [self.T["col_ip"], self.T["col_mac"], self.T["col_name"], self.T["col_vendor"],
+             self.T["col_port"], self.T["col_addr_kind"], self.T["col_presence"],
+             self.T["col_auth"], self.T["col_other_nets"]],
+            [120, 150, 170, 130, 160, 100, 130, 120, 150], multi=True)
+        self.tv_vlan.tag_configure("ok", foreground=C["ok"])
+        self.tv_vlan.tag_configure("bad", foreground=C["danger"])
+        self.tv_vlan.tag_configure("muted", foreground=C["muted"])
+        # نقرتان على خانة العنوان تفتحه في المتصفح، وعلى غيرها تسمّي الجهاز
+        self.tv_vlan.bind("<Double-1>", self._on_vlan_dclick)
+        self.tv_vlan._menu_actions = [(self.T["vlan_name_dev"], self.on_name_vlan_device),
+                                      (self.T["vlan_cut"], self.on_cut_vlan_devices),
+                                      (self.T["vlan_scan"], self.on_scan_overlap)]
+
     # ---- تبويب أجهزة الإدارة -----------------------------------------------
 
     def _tab_mgmt(self):
@@ -3536,8 +4126,8 @@ class App(tk.Tk):
         self.tv_wan = self._make_tree(
             f, ("line", "iface", "gw", "route", "icmp", "https", "rtt", "port", "verdict"),
             [self.T["col_line"], self.T["col_iface"], self.T["col_gw"], self.T["col_route"],
-             self.T["col_icmp"], self.T["col_https"], self.T["col_rtt"], self.T["col_port"],
-             self.T["col_verdict"]],
+             self.T["col_icmp"], self.T["col_https"], self.T["col_rtt"], self.T["col_bw"],
+             self.T["col_port"], self.T["col_verdict"]],
             [70, 190, 100, 140, 70, 70, 100, 170, 170], height=5)
         # الجدول بعدد صفوف ثابت، والمساحة الباقية للتقرير المفصّل تحته
         self.tv_wan.master.pack(fill="x", expand=False)
@@ -4114,6 +4704,277 @@ class App(tk.Tk):
             self.tv_on.insert("", "end", values=vals, tags=(tag,))
 
         self._apply_count(getattr(self, "lbl_count_on", None), shown, total)
+
+    # -- المتّصلون حسب الشبكة -------------------------------------------------
+
+    def _vlan_item(self, v):
+        """نص الشبكة في القائمة المنسدلة: مع عنوانها إن كان لها عنوان."""
+        if v.get("ip"):
+            return self.T["vlan_item_ip"] % {"vid": v["vid"], "ip": v["ip"], "len": v["len"]}
+        return self.T["vlan_item"] % {"vid": v["vid"]}
+
+    def on_refresh_vlans(self):
+        """يقرأ قائمة الشبكات، ويبقي المختارة مختارة إن كانت ما تزال موجودة."""
+        if not self._need_conn():
+            return
+        self._status(self.T["working"])
+        try:
+            self.vlans = self.router.read_vlans()
+        except Exception as e:
+            self._status("خطأ / Error: %s" % e, ok=False)
+            return
+        items = [self._vlan_item(v) for v in self.vlans]
+        self.cb_vlan.configure(values=items)
+        want = getattr(self, "vlan_vid", "")
+        idx = next((i for i, v in enumerate(self.vlans) if v["vid"] == want), None)
+        if idx is None:
+            # الافتراضي أول شبكة لها عنوان: هي وحدها التي تُظهر صورة كاملة
+            idx = next((i for i, v in enumerate(self.vlans) if v["iface"]), 0 if items else None)
+        if idx is None:
+            self.v_vlan.set("")
+            self.vlan_state = None
+            self._refresh_vlan_table()
+            self._status("")
+            return
+        self.v_vlan.set(items[idx])
+        self.on_pick_vlan()
+
+    def on_pick_vlan(self):
+        """يقرأ من على الشبكة المختارة. تُستدعى من القائمة المنسدلة ومن التحديث."""
+        if not self._need_conn():
+            return
+        items = list(self.cb_vlan["values"])
+        cur = self.v_vlan.get()
+        if cur not in items:
+            return
+        v = self.vlans[items.index(cur)]
+        self.vlan_vid = v["vid"]
+        self._status(self.T["working"])
+        try:
+            self.vlan_state = self.router.read_vlan_clients(v["vid"], v.get("iface", ""))
+        except Exception as e:
+            self._status("خطأ / Error: %s" % e, ok=False)
+            return
+        self.vlan_state["net"] = v
+        self._refresh_vlan_table()
+        # التحذير أولى بالشريط من خبر التحديث
+        self._status(self._vlan_warn or "تم التحديث من الراوتر / Refreshed from router",
+                     ok=not self._vlan_warn)
+
+    def _refresh_vlan_table(self):
+        """يبني الجدول من self.vlan_state وحدها؛ البحث لا يستعلم الراوتر."""
+        # نحفظ ما اختاره المستخدم: إعادة البناء تمسح التحديد، وبقاء المعرّف
+        # (الماك) يتيح إعادته بعد التحديث
+        keep = self.tv_vlan.selection()
+        for i in self.tv_vlan.get_children():
+            self.tv_vlan.delete(i)
+        st = getattr(self, "vlan_state", None)
+        self._vlan_warn = ""
+        if not st:
+            self.lbl_vlan_sum.configure(text="")
+            self._apply_count(getattr(self, "lbl_count_vlan", None), 0, 0)
+            return
+
+        ports = ", ".join(st["ports"]) or self.T["vlan_ports_none"]
+        if st.get("iface"):
+            pool = st.get("pool")
+            args = {"iface": st["iface"],
+                    "desc": (" (%s)" % st["desc"]) if st.get("desc") else "",
+                    "ports": ports,
+                    "pool": self.T["vlan_pool_fmt"] % pool if pool else self.T["vlan_pool_none"]}
+            if "." in st["iface"]:
+                # واجهة فرعية: لا منافذ لها، والمنفذ الحامل هو الأصل
+                args["parent"] = st["iface"].split(".")[0]
+                self.lbl_vlan_sum.configure(text=self.T["vlan_summary_sub"] % args)
+            else:
+                self.lbl_vlan_sum.configure(text=self.T["vlan_summary"] % args)
+        else:
+            self.lbl_vlan_sum.configure(
+                text=self.T["vlan_summary_l2"] % {"ports": ports} + "\n" + self.T["vlan_no_iface"])
+
+        # جدول فارغ يحتاج تفسيراً: أهي شبكة لا يحملها منفذ، أم لا تعبره حركتها؟
+        if not st["rows"]:
+            if st.get("iface"):
+                why = self.T["vlan_empty_quiet"]
+            elif not st["ports"]:
+                why = self.T["vlan_empty_noport"]
+            else:
+                why = self.T["vlan_empty_noswitch"] % {"ports": ports}
+            self.lbl_vlan_sum.configure(text=self.lbl_vlan_sum.cget("text") + "\n" + why)
+
+        kinds = {"dhcp": "vlan_kind_dhcp", "bind": "vlan_kind_bind",
+                 "static": "vlan_kind_static", "none": "vlan_kind_none"}
+        pres = {"active": "pres_active", "seen": "pres_seen", "lease": "pres_lease"}
+        q = self.v_find_vlan.get() if hasattr(self, "v_find_vlan") else ""
+        dups = (getattr(self, "overlap", None) or {}).get("dups") or {}
+        shown = total = noaddr = held = crossed = 0
+        for r in st["rows"]:
+            name = self.db.name_of(r["mac"])
+            # عقود الجهاز في شبكات غير هذه — لا تُملأ إلا بعد فحص التداخل
+            other = [e for e in dups.get(r["mac"], []) if e["vid"] != str(st["vid"])]
+            vals = (r["ip"], mac_pretty(r["mac"]), name,
+                    self._vendor_text(r),
+                    r["port"] or "—", self.T[kinds[r["kind"]]],
+                    self.T[pres[r["presence"]]], r["auth"] or "—",
+                    " · ".join("VLAN %s (%s)" % (e["vid"], e["ip"]) for e in other) or "—")
+            total += 1
+            if r["kind"] == "none":
+                noaddr += 1
+            if r["presence"] == "lease":
+                held += 1
+            if other:
+                crossed += 1
+            if not row_matches(q, vals, r["mac"]):
+                continue
+            shown += 1
+            if other:
+                tag = "bad"                         # يحمل عنواناً في شبكة أخرى
+            elif r["presence"] == "lease":
+                tag = "muted"                       # محجوز لا حاضر
+            elif r["kind"] == "none":
+                tag = "bad"                         # حاضر بلا عنوان
+            else:
+                tag = "ok" if r["presence"] == "active" else "muted"
+            self.tv_vlan.insert("", "end", iid=r["mac"], values=vals, tags=(tag,))
+
+        back = [i for i in keep if self.tv_vlan.exists(i)]
+        if back:
+            self.tv_vlan.selection_set(*back)
+
+        self._apply_count(getattr(self, "lbl_count_vlan", None), shown, total)
+        # الأجهزة بلا عنوان علامة عطل في العنونة أو المصادقة، لا تفصيلة جدول
+        self._vlan_warn = (self.T["vlan_noaddr_warn"] % {"n": noaddr, "total": total}
+                           if noaddr and st.get("iface") else "")
+        if held:
+            self.lbl_vlan_sum.configure(text=self.lbl_vlan_sum.cget("text") + "\n"
+                                        + self.T["vlan_lease_note"] % {"n": held})
+        if crossed:
+            self.lbl_vlan_sum.configure(text=self.lbl_vlan_sum.cget("text") + "\n"
+                                        + self.T["vlan_scan_here"] % {"n": crossed})
+
+    def on_scan_overlap(self):
+        """
+        يقرأ مجمَّعات كل الشبكات مرّة واحدة ويقارنها: الماك الذي يحمل عنواناً
+        في شبكتين هو الدليل على تسرّب شبكة إلى أخرى. قراءة محضة، لا أمر تغيير.
+        النتيجة تبقى محفوظة فتظهر في خانة «شبكات أخرى» لكل شبكة تُختار بعدها.
+        """
+        if not self._need_conn():
+            return
+        if not getattr(self, "vlans", None):
+            messagebox.showinfo(APP_NAME, self.T["vlan_scan_first"])
+            return
+        self._status(self.T["working"])
+        try:
+            scans = self.router.scan_pools(self.vlans)
+        except Exception as e:
+            self._status("خطأ / Error: %s" % e, ok=False)
+            return
+        self.overlap = overlap_report(scans)
+        self._refresh_vlan_table()
+        dups, tight = self.overlap["dups"], self.overlap["tight"]
+        if dups:
+            msg = self.T["vlan_scan_done"] % {"n": len(dups), "nets": len(scans)}
+        else:
+            msg = self.T["vlan_scan_none"] % {"nets": len(scans)}
+        if tight:
+            msg += "  " + self.T["vlan_scan_tight"] % " · ".join(
+                self.T["vlan_scan_tight_one"] % e for e in tight)
+        self.db.log("scan_overlap", "", "%d/%d" % (len(dups), len(scans)))
+        self._status(msg, ok=not dups and not tight)
+
+    def _vendor_text(self, row):
+        """نص خانة المُصنِّع: عشوائي، أو اسم، أو غير معلن، أو الرمز وحده."""
+        if row["random"]:
+            return self.T["vendor_random"]
+        name = mac_vendor(row["mac"])
+        if name == "\x00":
+            return self.T["vendor_private"]
+        return name or mac_oui(row["mac"])
+
+    def _on_vlan_dclick(self, event):
+        iid, col = self._tree_cell(self.tv_vlan, event)
+        if not iid:
+            return
+        if col == "ip":
+            ip = self.tv_vlan.item(iid, "values")[0]
+            if ip:
+                self._open_url("http://%s" % ip)
+                return
+        self.tv_vlan.selection_set(iid)
+        self.on_name_vlan_device()
+
+    def _open_url(self, url):
+        """يفتح عنواناً في متصفح النظام. فشل الفتح لا يُسقط البرنامج."""
+        try:
+            webbrowser.open(url)
+        except Exception as e:
+            self._status("خطأ / Error: %s" % e, ok=False)
+            return
+        self._status(self.T["vlan_open_ip"] % url)
+
+    def on_name_vlan_device(self):
+        """
+        تسمية جهاز من جدول الشبكة. محلّية بالكامل: لا أمر يُرسل إلى الراوتر،
+        والاسم يُحفظ بالماك فيتبع الجهاز مهما تغيّر عنوانه أو شبكته.
+        """
+        sel = self.tv_vlan.selection()
+        if not sel:
+            messagebox.showinfo(APP_NAME, self.T["vlan_pick_row"])
+            return
+        vals = self.tv_vlan.item(sel[0], "values")
+        mac12 = normalize_mac(vals[1])
+        if not mac12:
+            return
+        dlg = FieldDialog(self, self.T["vlan_name_dev"], [
+            {"key": "name", "label": self.T["ask_name"], "default": self.db.name_of(mac12)},
+            {"key": "note", "label": self.T["ask_note"], "default": self.db.note_of(mac12)},
+        ])
+        if not dlg.result:
+            return
+        name = (dlg.result.get("name") or "").strip()
+        self.db.set_name(mac12, name, (dlg.result.get("note") or "").strip())
+        self.db.log("name_device", mac12, name)
+        self._refresh_vlan_table()
+        self._status(self.T["vlan_named"] % {"mac": mac_pretty(mac12), "name": name or "—"})
+
+    def on_cut_vlan_devices(self):
+        """
+        يقطع جلسات الأجهزة المحدَّدة. القطع يخصّ المصادَق عليهم وحدهم، فإن كانت
+        الشبكة بلا مصادقة قلنا ذلك بدل إرسال أمر لا أثر له.
+        """
+        if not self._need_conn():
+            return
+        st = getattr(self, "vlan_state", None) or {}
+        sel = [i for i in self.tv_vlan.selection() if self.tv_vlan.exists(i)]
+        if not sel:
+            messagebox.showinfo(APP_NAME, self.T["vlan_pick_row"])
+            return
+        if not st.get("nac"):
+            messagebox.showinfo(APP_NAME, self.T["vlan_cut_no_nac"])
+            return
+        names = []
+        for mac12 in sel:
+            vals = self.tv_vlan.item(mac12, "values")
+            names.append("• %s  %s  %s" % (vals[0] or "—", vals[1], vals[2] or ""))
+        if not messagebox.askyesno(APP_NAME, self.T["vlan_cut_ask"] % {"n": len(sel)}
+                                   + "\n\n" + "\n".join(names)):
+            return
+
+        self._status(self.T["working"])
+        try:
+            res = self.router.cut_users(sel)
+        except Exception as e:
+            self._status("خطأ / Error: %s" % e, ok=False)
+            messagebox.showerror(APP_NAME, str(e))
+            return
+        bad = [m for m, out in res.items() if "Error" in (out or "")]
+        for mac12 in sel:
+            self.db.log("cut_user", mac12, st.get("iface", ""))
+        self.on_pick_vlan()
+        if bad:
+            messagebox.showerror(APP_NAME, self.T["vlan_cut_failed"]
+                                 % ", ".join(mac_pretty(m) for m in bad))
+        self._status(self.T["vlan_cut_done"] % {"ok": len(sel) - len(bad), "n": len(sel)})
 
     # -- عمليات الأجهزة ------------------------------------------------------
 
@@ -4928,6 +5789,10 @@ class App(tk.Tk):
         notes = [self.T[n] for n in ln.get("notes", [])]
         if ln.get("health") == "blocked":
             notes.insert(0, self.T["note_blocked"])
+        if ln.get("health") == "throttled":
+            notes.insert(0, self.T["note_throttled"] % ("%g" % round(ln["kbps"] / 1000.0, 1)))
+        if ln.get("kbps") is None and ln.get("ping"):
+            notes.append(self.T["note_no_bw"])
         port = ln.get("port") or {}
         if port.get("speed") and port["speed"] < 1000:
             notes.append(self.T["note_speed"] % port["speed"])
@@ -4937,6 +5802,22 @@ class App(tk.Tk):
         if down and now and datetime.timedelta(0) <= now - down <= datetime.timedelta(days=1):
             notes.append(self.T["note_recent_down"] % down.strftime("%Y-%m-%d %H:%M"))
         return notes
+
+    @staticmethod
+    def _wan_mbps(ln):
+        """السعة رقماً بالميغابت للرسائل — بلا وحدة ولا سقف."""
+        kbps = ln.get("kbps")
+        return "—" if kbps is None else "%g" % round(kbps / 1000.0, 1)
+
+    def _wan_bw_text(self, ln):
+        """السعة بالميغابت، أو «> السقف» حين يكون الفارق أصغر من دقة القياس."""
+        kbps = ln.get("kbps")
+        if kbps is None:
+            return self.T["res_none"]
+        mbps = "%g" % round(kbps / 1000.0, 1)
+        if kbps >= WAN_BW_CAP_KBPS:
+            return self.T["bw_over"] % ("%g" % (WAN_BW_CAP_KBPS / 1000.0))
+        return self.T["bw_fmt"] % mbps
 
     def _wan_route_text(self, ln):
         if ln.get("withdrawn"):
@@ -4966,7 +5847,7 @@ class App(tk.Tk):
         for i in self.tv_wan.get_children():
             self.tv_wan.delete(i)
         tags = {"ok": "ok", "slow": "warn", "unknown": "warn", "blocked": "bad",
-                "down": "bad", "port_down": "out", "withdrawn": "out"}
+                "throttled": "bad", "down": "bad", "port_down": "out", "withdrawn": "out"}
         for ln in self.wan_lines:
             ping = ln.get("ping")
             rtt = (self.T["rtt_fmt"] % {"avg": ping["avg"] if ping["avg"] is not None else "—",
@@ -4992,7 +5873,8 @@ class App(tk.Tk):
             vals = (self._wan_name(ln), iface, ln["gw"], self._wan_route_text(ln),
                     self._wan_res_text(ln.get("icmp_result") if probes else None),
                     self._wan_res_text(ln.get("tcp_result") if probes else None),
-                    rtt, port_txt, verdict)
+                    rtt, self._wan_bw_text(ln) if probes else self.T["res_none"],
+                    port_txt, verdict)
             self.tv_wan.insert("", "end", iid=ln["gw"], values=vals,
                                tags=(tags.get(ln["verdict"], ""),))
         self._render_wan_report()
@@ -5024,6 +5906,11 @@ class App(tk.Tk):
                 out.append("  %s: %s" % (T["rep_live"], T["rep_live_fmt"] % {
                     k: ("%g" % v if isinstance(v, float) else (v if v is not None else "—"))
                     for k, v in ping.items()}))
+            if ln.get("kbps") is not None:
+                out.append("  %s: %s" % (T["rep_bw"], T["rep_bw_fmt"] % {
+                    "bw": self._wan_bw_text(ln), "small": WAN_SMALL_BYTES, "big": WAN_BIG_BYTES,
+                    "rtt_small": (ln.get("ping") or {}).get("min", "—"),
+                    "rtt_big": (ln.get("ping_big") or {}).get("min", "—")}))
             port = ln.get("port") or {}
             if port.get("speed") or port.get("in_bps") is not None:
                 bits = []
@@ -5087,7 +5974,8 @@ class App(tk.Tk):
         except Exception:
             pass
         blocked = [self._wan_name(l) for l in lines
-                   if l["verdict"] == "blocked" and l.get("route_state") == "Active"]
+                   if l["verdict"] in ("blocked", "throttled")
+                   and l.get("route_state") == "Active"]
         if blocked:
             self._status(self.T["warn_blocked_lines"] % "، ".join(blocked), ok=False)
         else:
@@ -5118,7 +6006,7 @@ class App(tk.Tk):
         self.settings["withdrawn_lines"][ln["gw"]] = {
             "track": list(removed["track"]) if removed["track"] else None,
             "reason": reason, "at": now_stamp(), "line": removed["line"],
-            "name": self._wan_name(ln)}
+            "health": ln.get("health"), "name": self._wan_name(ln)}
         self._save_settings()
         self.db.log("wan_withdraw", ln["gw"], "%s (%s)" % (self._wan_name(ln), reason))
 
@@ -5195,6 +6083,7 @@ class App(tk.Tk):
 
     WAN_AUTO_MS = 60000
     WAN_STREAK = 2          # فحصان متتاليان قبل أي تصرف، كي لا تُسقط رزمة ضائعة خطاً
+    WAN_BW_EVERY = 5        # قياس السعة كل خمس دورات: يكلّف ping ين لكل خط
 
     def _on_wan_auto_toggle(self):
         self.settings["wan_auto"] = bool(self.v_wan_auto.get())
@@ -5226,41 +6115,70 @@ class App(tk.Tk):
             self._wan_schedule()
 
     def _wan_monitor_once(self):
-        """دورة مراقبة واحدة بلا ping مباشر وبلا نوافذ."""
+        """
+        دورة مراقبة واحدة بلا نوافذ.
+
+        الفحوص وحدها كل دقيقة، أمّا قياس السعة فكل WAN_BW_EVERY دورات لأنه
+        يكلّف ping ين لكل خط. ودورة بلا قياس لا تُسقط تتابع الخط المخنوق
+        ولا تعيده، فالقرار يُبنى على قياسات فعلية لا على غيابها.
+        """
         self._quiet = True
         try:
-            lines = self.on_check_lines(live=False)
+            self._wan_ticks = getattr(self, "_wan_ticks", 0) + 1
+            measured = self._wan_ticks % self.WAN_BW_EVERY == 0
+            lines = self.on_check_lines(live=measured)
             if lines is None or not self.v_wan_auto_withdraw.get():
                 return
             acted = []
             for ln in lines:
                 gw = ln["gw"]
                 rec = ln.get("withdrawn")
-                if not rec and ln["health"] == "blocked" and ln.get("route_state") == "Active":
-                    kind = "bad"
+                # قرارات السعة لها دفتر تتابع منفصل: الفحوص تُقرأ كل دقيقة
+                # والسعة كل خمس، فخلطهما في دفتر واحد يمحو تتابع السعة
+                bw_case = bool(rec) and rec.get("health") == "throttled"
+                kind, book = None, self._wan_streak
+                if not rec and ln.get("route_state") == "Active":
+                    if ln["health"] == "blocked":
+                        kind = "bad"
+                    elif ln["health"] == "throttled":
+                        kind, book = "bad", self._wan_bw_streak
                 elif rec and rec.get("reason") == "auto" and ln["health"] in ("ok", "slow"):
-                    kind = "good"
-                else:
-                    self._wan_streak.pop(gw, None)
+                    if not bw_case:
+                        kind = "good"
+                    elif measured and (ln.get("kbps") or 0) >= WAN_OK_KBPS:
+                        # المخنوق لا يعود إلا بقياس يثبت تعافيه، لا بغياب القياس
+                        kind, book = "good", self._wan_bw_streak
+                if kind is None:
+                    if measured or not (bw_case or self._wan_bw_streak.get(gw)):
+                        self._wan_streak.pop(gw, None)
+                        self._wan_bw_streak.pop(gw, None)
                     continue
-                prev = self._wan_streak.get(gw, (kind, 0))
+                prev = book.get(gw, (kind, 0))
                 count = prev[1] + 1 if prev[0] == kind else 1
-                self._wan_streak[gw] = (kind, count)
+                book[gw] = (kind, count)
                 if count < self.WAN_STREAK:
                     continue
                 try:
                     if kind == "bad":
                         if not self._other_working_lines(gw):
                             continue
+                        throttled = ln["health"] == "throttled"
                         self._withdraw(ln, "auto")
-                        acted.append(self.T["auto_withdrew"] % self._wan_name(ln))
+                        acted.append(
+                            (self.T["auto_withdrew_bw"] % {"line": self._wan_name(ln),
+                                                           "bw": self._wan_mbps(ln)})
+                            if throttled else self.T["auto_withdrew"] % self._wan_name(ln))
                     else:
+                        restored_bw = bw_case
                         self._restore(ln)
-                        acted.append(self.T["auto_restored"] % self._wan_name(ln))
+                        acted.append(
+                            (self.T["auto_restored_bw"] % {"line": self._wan_name(ln),
+                                                           "bw": self._wan_mbps(ln)})
+                            if restored_bw else self.T["auto_restored"] % self._wan_name(ln))
                 except Exception as e:
                     self._status(self.T["auto_error"] % e, ok=False)
                     continue
-                self._wan_streak.pop(gw, None)
+                book.pop(gw, None)
                 # الحالة تغيّرت؛ الخط التالي يُقيَّم على الصورة الجديدة
                 ln["withdrawn"] = self.settings["withdrawn_lines"].get(gw)
                 ln["route_state"] = "" if ln["withdrawn"] else "Active"
@@ -5310,7 +6228,8 @@ class App(tk.Tk):
     # -- التصدير -------------------------------------------------------------
 
     def on_export(self, which):
-        tv = self.tv_dev if which == "devices" else self.tv_por
+        tv = {"devices": self.tv_dev, "portal": self.tv_por,
+              "vlans": getattr(self, "tv_vlan", None)}.get(which, self.tv_por)
         path = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("CSV", "*.csv")],
@@ -5356,22 +6275,31 @@ class _DemoWan(object):
     المربوط يُتجاهل. تستخدمه وضع التجربة ومجموعة الاختبار معاً.
     """
 
-    def __init__(self, blocked_wan1=False):
+    def __init__(self, blocked_wan1=False, throttled_wan3=False):
         self.hostname = "AR730"
-        # بوابة -> حالة الخط
+        # بوابة -> حالة الخط. kbps سعة الخط: منها يُحسب زمن الرزمة الكبيرة
         self.lines = {
             "192.168.1.1": {"iface": "GigabitEthernet0/0/9", "ip": "192.168.1.250",
                             "desc": "WAN1", "up": True, "icmp_ok": True,
                             "tcp_ok": not blocked_wan1, "rtt": 52, "loss": 0,
-                            "speed": 100, "crc": 115, "probe": "149.112.112.112", "n": 1},
+                            "speed": 100, "crc": 115, "probe": "149.112.112.112",
+                            "kbps": 20000, "n": 1},
             "192.168.2.1": {"iface": "GigabitEthernet0/0/8", "ip": "192.168.2.250",
                             "desc": "WAN2", "up": False, "icmp_ok": True, "tcp_ok": True,
                             "rtt": 40, "loss": 0, "speed": 1000, "crc": 0,
-                            "probe": "94.140.14.14", "n": 2},
+                            "probe": "94.140.14.14", "kbps": 20000, "n": 2},
+            # الخط المخنوق: كل فحوصه تنجح وزمنه الصغير ممتاز، ولا تفضحه إلا
+            # الرزمة الكبيرة — كما على wan2 الحقيقي يوم 2026-09-16
+            "192.168.3.1": {"iface": "GigabitEthernet0/0/10", "ip": "192.168.3.250",
+                            "desc": "WAN3", "up": True, "icmp_ok": True, "tcp_ok": True,
+                            "rtt": 56, "loss": 0, "speed": 1000, "crc": 0,
+                            "probe": "9.9.9.9", "kbps": 180 if throttled_wan3 else 22000,
+                            "n": 3},
             "192.168.4.1": {"iface": "Vlanif103", "phys": "GigabitEthernet0/0/3",
                             "ip": "192.168.4.250", "desc": "WAN4", "up": True,
                             "icmp_ok": True, "tcp_ok": True, "rtt": 44, "loss": 0,
-                            "speed": 1000, "crc": 0, "probe": "8.8.4.4", "n": 4},
+                            "speed": 1000, "crc": 0, "probe": "8.8.4.4",
+                            "kbps": 20000, "n": 4},
         }
         self.routes = []
         for gw, ln in sorted(self.lines.items()):
@@ -5489,6 +6417,8 @@ class _DemoWan(object):
         out.append("Vlanif1                           10.0.1.1/24          up         up        ")
         out.append("Vlanif10                          10.0.10.1/24         up         up        ")
         out.append("Vlanif20                          10.0.20.1/23         up         up        ")
+        out.append("XGigabitEthernet0/0/0             unassigned           up         down      ")
+        out.append("XGigabitEthernet0/0/0.70          10.0.70.1/24         up         up        ")
         return "\n".join(out)
 
     def _nqa_results(self, name):
@@ -5560,21 +6490,34 @@ class _DemoWan(object):
         gw = parts[parts.index("-nexthop") + 1]
         dest = parts[-1]
         count = int(parts[parts.index("-c") + 1]) if "-c" in parts else 5
+        size = int(parts[parts.index("-s") + 1]) if "-s" in parts else 56
         ln = self.lines.get(gw)
         ok = bool(ln and ln["up"] and ln["icmp_ok"])
         recv = int(round(count * (100 - ln["loss"]) / 100.0)) if ok else 0
-        out = ["  PING %s: 56  data bytes, press CTRL_C to break" % dest]
+        # زمن دفع البايتات الزائدة ذهاباً وإياباً: bits ÷ kbps = ms
+        rtt = ln["rtt"] + int(2.0 * (size - 56) * 8 / ln["kbps"]) if ok else 0
+        out = ["  PING %s: %d  data bytes, press CTRL_C to break" % (dest, size)]
         for i in range(count):
-            out.append("    Reply from %s: bytes=56 Sequence=%d ttl=116 time=%d ms"
-                       % (dest, i + 1, ln["rtt"]) if i < recv else "    Request time out")
+            out.append("    Reply from %s: bytes=%d Sequence=%d ttl=116 time=%d ms"
+                       % (dest, size, i + 1, rtt) if i < recv else "    Request time out")
         out += ["", "  --- %s ping statistics ---" % dest,
                 "    %d packet(s) transmitted" % count,
                 "    %d packet(s) received" % recv,
                 "    %.2f%% packet loss" % (100.0 * (count - recv) / count)]
         if recv:
             out.append("    round-trip min/avg/max = %d/%d/%d ms"
-                       % (ln["rtt"] - 4, ln["rtt"], ln["rtt"] + 2))
+                       % (rtt - 4, rtt, rtt + 2))
         return "\n".join(out)
+
+
+class _Vid(object):
+    """بديل نتيجة مطابقة قديمة: group(1) هو رقم الشبكة مهما كان اسم واجهتها."""
+
+    def __init__(self, vid):
+        self._vid = vid
+
+    def group(self, _n):
+        return self._vid
 
 
 class _DemoMgmt(object):
@@ -5601,9 +6544,44 @@ class _DemoMgmt(object):
         self.binds = {}             # vid -> {عنوان: (ماك مفصول، وصف)}
         self.arp = {}               # عنوان -> (ماك، vid، منفذ)
         self.leases = {"20": {"10.0.20.166": "0000-5e00-5302", "10.0.21.254": "0000-5e00-5362"}}
+        # شبكة الإدارة مثل الجهاز الحقيقي: مجمّعها ضيّق بعد استبعاد أكثره،
+        # وفيها جهاز يحمل عنواناً في شبكته الأصلية أيضاً — أثر تسرّبها
+        # غير موسومة عبر وصلة التبديل (docs/router/lessons-learned.md#L16)
+        self.excluded = {"1": 232}
+        self.leases["1"] = dict(("10.0.1.%d" % n, "0000-5e00-53%02d" % (n + 10))
+                                for n in range(10, 31))
+        self.leases["1"]["10.0.1.10"] = "0000-5e00-5302"
         self.dyn_arp = {"20": {"0000-5e00-5302": ("10.0.20.166", "GE0/0/2")}}
+        # شبكات موجودة بلا واجهة عنونة — الجهاز الحقيقي فيه ثمان منها
+        self.l2_vlans = {"30": ["GigabitEthernet0/0/4"], "40": [],
+                         "50": ["GigabitEthernet0/0/5"]}
+        # شبكة موجَّهة: تصل موسومة وتُنهى على واجهة فرعية، فلا منفذ لها ولا
+        # أثر في جدول العناوين الفيزيائية — أجهزتها تُعرف من ARP وحده
+        self.subifs = {"70": "XGigabitEthernet0/0/0.70"}
+        self.nets["70"] = ("10.0.70.1", 24, False, [])
+        self.leases["70"] = {"10.0.70.100": "0000-5e00-5375",
+                             "10.0.70.101": "0000-5e00-5376"}
+        self.dyn_arp["70"] = {"0000-5e00-5375": ("10.0.70.100", "XGE0/0/0.70"),
+                              "0000-5e00-5377": ("10.0.70.130", "XGE0/0/0.70")}
+        # جدول العناوين الفيزيائية: (ماك، vid، منفذ). هو وحده يرى جهازاً بلا عنوان
+        self.mac_table = [("0000-5e00-5302", "20", "GigabitEthernet0/0/2"),
+                          ("0000-5e00-5362", "20", "GigabitEthernet0/0/2"),
+                          ("0000-5e00-5371", "20", "GigabitEthernet0/0/2"),
+                          ("0000-5e00-5372", "20", "GigabitEthernet0/0/2"),
+                          ("0000-5e00-5373", "1", "GigabitEthernet0/0/1"),
+                          ("0000-5e00-5374", "30", "GigabitEthernet0/0/4")]
         self.fail_on = {}           # بداية أمر -> رسالة خطأ، لمحاكاة رفض الراوتر
         self.commands = []
+
+    def _vid_of(self, iface):
+        """رقم الشبكة من اسم واجهتها: Vlanif20 أو واجهة فرعية بـ dot1q."""
+        for vid, name in self.subifs.items():
+            if name == iface:
+                return vid
+        m = re.match(r"^Vlanif(\d+)$", iface or "")
+        if m and m.group(1) in self.nets and m.group(1) not in self.subifs:
+            return m.group(1)
+        return None
 
     @staticmethod
     def _vid(iface):
@@ -5760,52 +6738,106 @@ class _DemoMgmt(object):
             return "\n".join("arp static %s %s%s" % (ip, mac, " vid %s interface %s" % (vid, port)
                                                      if vid else "")
                              for ip, (mac, vid, port) in sorted(self.arp.items()))
-        m = re.match(r"^display current-configuration interface (Vlanif(\d+))$", cmd)
-        if m and m.group(2) in self.nets:
-            gw, length, nac, _ = self.nets[m.group(2)]
+        m = re.match(r"^display current-configuration interface (\S+)$", cmd)
+        vid = self._vid_of(m.group(1)) if m else None
+        if vid:
+            gw, length, nac, _ = self.nets[vid]
             mask = _int_ip((0xffffffff << (32 - length)) & 0xffffffff)
-            out = ["[V300R024C00SPC100]", "#", "interface %s" % m.group(1),
-                   " ip address %s %s" % (gw, mask)]
+            out = ["[V300R024C00SPC100]", "#", "interface %s" % m.group(1)]
+            if vid in self.subifs:
+                out.append(" dot1q termination vid %s" % vid)
+            out.append(" ip address %s %s" % (gw, mask))
             if nac:
                 out.append(" authentication-profile p_nac")
             out.append(" dhcp select interface")
-            for ip, (mac, desc) in sorted(self.binds.get(m.group(2), {}).items()):
+            for ip, (mac, desc) in sorted(self.binds.get(vid, {}).items()):
                 out.append(" dhcp server static-bind ip-address %s mac-address %s" % (ip, mac))
             return "\n".join(out + ["#", "return"])
-        m = re.match(r"^display ip pool interface Vlanif(\d+) used$", cmd)
-        if m and m.group(1) in self.nets:
-            gw, length, _, _ = self.nets[m.group(1)]
+        m = re.match(r"^display ip pool interface (\S+) used$", cmd)
+        vid = self._vid_of(m.group(1)) if m else None
+        if vid:
+            m = _Vid(vid)
+            gw, length, _, _ = self.nets[vid]
             lo, hi = subnet_bounds(gw, length)
+            leases = self.leases.get(m.group(1), {})
+            total = hi - lo - 1
+            # المستبعَد بـ excluded-ip-address يُعدّ Disabled ولا يُحسب متاحاً
+            off = self.excluded.get(m.group(1), 0)
             out = ["  Pool-name        : Vlanif%s" % m.group(1),
-                   "  Network          : %s" % _int_ip(lo), "",
-                   " " + "-" * 85, "  Network section ",
+                   "  Network          : %s" % _int_ip(lo),
+                   "  Address Statistic: Total       :%-10d Used        :%-10d"
+                   % (total, len(leases)),
+                   "                     Idle        :%-10d Expired     :0         "
+                   % (total - len(leases) - off),
+                   "                     Conflict    :0          Disabled    :%-10d" % off, ""]
+            # مجمّع بلا عقود لا يطبع الجدول أصلاً (docs/router/captures/05-vlan-clients.txt)
+            if not leases:
+                return "\n".join(out)
+            out += [" " + "-" * 85, "  Network section ",
                    "         Start           End       Total    Used Idle(Expired) Conflict Disabled",
                    " " + "-" * 85,
                    "       %s     %s     %d      %d        %d(0)       0     0"
-                   % (_int_ip(lo + 1), _int_ip(hi - 1), hi - lo - 1,
-                      len(self.leases.get(m.group(1), {})), hi - lo - 1),
+                   % (_int_ip(lo + 1), _int_ip(hi - 1), total, len(leases),
+                      total - len(leases)),
                    " " + "-" * 85,
                    "  Index              IP             Client-ID    Type       Left   Status           ",
                    " " + "-" * 85]
-            for i, (ip, mac) in enumerate(sorted(self.leases.get(m.group(1), {}).items(),
+            for i, (ip, mac) in enumerate(sorted(leases.items(),
                                                  key=lambda x: _ip_int(x[0]))):
                 out.append("    %3d     %11s        %s    DHCP     527035   Used             "
                            % (_ip_int(ip) - lo - 1, ip, mac))
             return "\n".join(out + [" " + "-" * 85])
-        m = re.match(r"^display arp interface Vlanif(\d+)$", cmd)
-        if m and m.group(1) in self.nets:
-            gw = self.nets[m.group(1)][0]
+        m = re.match(r"^display arp interface (\S+)$", cmd)
+        vid = self._vid_of(m.group(1)) if m else None
+        if vid:
+            iface = m.group(1)
+            m = _Vid(vid)
+            gw = self.nets[vid][0]
             out = ["IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE ",
                    "                                    VLAN/CEVLAN(SIP/DIP)      PVC",
-                   "-" * 78, "%-15s 0000-5e00-5365            I -         Vlanif%s       "
-                   % (gw, m.group(1))]
+                   "-" * 78, "%-15s 0000-5e00-5300            I -         %-14s "
+                   % (gw, iface)]
             for mac, (ip, port) in sorted(self.dyn_arp.get(m.group(1), {}).items()):
                 out += ["%-15s %s  17        D-0         %s        " % (ip, mac, port),
                         "                                            %s/-      " % m.group(1)]
             return "\n".join(out + ["-" * 78])
+        if cmd == "display vlan":
+            out = ["* : management-vlan", "-" * 21,
+                   "The total number of vlans is : %d" % (len(self.nets) + len(self.l2_vlans)),
+                   "VLAN ID Type         Status   MAC Learning "
+                   "Broadcast/Multicast/Unicast Property ", "-" * 80]
+            for vid in sorted(list(self.nets) + list(self.l2_vlans), key=int):
+                out.append("%-7s common       enable   enable       "
+                           "forward   forward   forward default  " % vid)
+            return "\n".join(out)
+        if cmd == "display mac-address":
+            out = ["-" * 110,
+                   "MAC Address       VLAN/Bridge/VSI/BD      Learned-From"
+                   "               Type      Vpn                            ", "-" * 110]
+            for mac, vid, port in sorted(self.mac_table, key=lambda r: (int(r[1]), r[0])):
+                out.append("%s   %8s              %-26s dynamic   public"
+                           % (mac, vid + "/-/-/-", port))
+            return "\n".join(out + ["", "-" * 110,
+                                    "Total items displayed = %d" % len(self.mac_table), ""])
+        m = re.match(r"^display vlan (\d+)$", cmd)
+        if m and m.group(1) in self.l2_vlans:
+            ports = self.l2_vlans[m.group(1)]
+            head = ["VLAN ID Type         Status   MAC Learning "
+                    "Broadcast/Multicast/Unicast Property ",
+                    "%-7s common       enable   enable       "
+                    "forward   forward   forward default  " % m.group(1)]
+            if not ports:
+                return "\n".join(head)
+            return "\n".join(head + ["-" * 19, "Untagged      Port: %s" % " ".join(ports)])
         m = re.match(r"^display vlan (\d+)$", cmd)
         if m and m.group(1) in self.nets:
             ports = self.nets[m.group(1)][3]
+            if not ports:
+                return "\n".join([
+                    "VLAN ID Type         Status   MAC Learning "
+                    "Broadcast/Multicast/Unicast Property ",
+                    "%-7s common       enable   enable       "
+                    "forward   forward   forward default  " % m.group(1)])
             return "\n".join([
                 "VLAN ID Type         Status   MAC Learning Broadcast/Multicast/Unicast Property ",
                 "%-7s common       enable   enable       forward   forward   forward default  "
@@ -5831,7 +6863,7 @@ class _DemoDevice(object):
         self.profiles = {"m_wl": "Demo-Shared-2026"}
         self.profile = None
         # WAN1 محجوب عمداً: ping يعمل وHTTPS لا — للتدرّب على كشف انتهاء الحصة
-        self.wan = _DemoWan(blocked_wan1=True)
+        self.wan = _DemoWan(blocked_wan1=True, throttled_wan3=True)
         self.wan.hostname = self.hostname
         self.mgmt = _DemoMgmt()
         self.sub = ""
@@ -5887,6 +6919,8 @@ class _DemoDevice(object):
         if cmd.startswith("display "):
             return self._display(cmd)
         if cmd.startswith("cut access-user"):
+            if self.view != "aaa":
+                return "Error: Unrecognized command found at '^' position."
             return self._cut(cmd)
         if cmd.startswith("local-user ") or cmd.startswith("undo local-user "):
             if self.view != "aaa":

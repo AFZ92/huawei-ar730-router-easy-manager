@@ -1,0 +1,259 @@
+# Real AR730 terminal captures (VRP V300R024C00SPC100)
+#
+# Pasted verbatim from the router's SSH terminal during development, then
+# sanitised: the hostname serial and device MAC addresses (mapped consistently
+# to the 00-00-5E-00-53-xx documentation range) are replaced. Column widths are
+# preserved. Long tables are cut where marked; the totals are the real ones.
+#
+==============================================================================
+# VLAN list, per-VLAN clients: ARP, DHCP pool, MAC address table
+# captured 2026-09-17
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>screen-length 0 temporary
+Info: The configuration takes effect on the current user terminal interface only.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display vlan
+* : management-vlan
+---------------------
+The total number of vlans is : 13
+VLAN ID Type         Status   MAC Learning Broadcast/Multicast/Unicast Property 
+--------------------------------------------------------------------------------
+1       common       enable   enable       forward   forward   forward default  
+10      common       enable   enable       forward   forward   forward default  
+20      common       enable   enable       forward   forward   forward default  
+30      common       enable   enable       forward   forward   forward default  
+40      common       enable   enable       forward   forward   forward default  
+50      common       enable   enable       forward   forward   forward default  
+60      common       enable   enable       forward   forward   forward default  
+70      common       enable   enable       forward   forward   forward default  
+103     common       enable   enable       forward   forward   forward default  
+104     common       enable   enable       forward   forward   forward default  
+105     common       enable   enable       forward   forward   forward default  
+106     common       enable   enable       forward   forward   forward default  
+107     common       enable   enable       forward   forward   forward default  
+<AR730_XXXXXXXXXXXXXXXXXXXX>display arp interface Vlanif1
+IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE 
+                                    VLAN/CEVLAN(SIP/DIP)      PVC
+------------------------------------------------------------------------------
+10.0.1.1        0000-5e00-5300            I -         Vlanif1        
+10.0.1.202      0000-5e00-5361  18        D-0         GE0/0/2        
+                                             1/-      
+10.0.1.216      0000-5e00-5362  17        D-0         GE0/0/1        
+                                             1/-      
+10.0.1.217      0000-5e00-5363  16        D-0         GE0/0/1        
+                                             1/-      
+10.0.1.210      0000-5e00-5364  6         D-0         GE0/0/1        
+                                             1/-      
+10.0.1.200      0000-5e00-5365  8         D-0         GE0/0/1        
+                                             1/-      
+------------------------------------------------------------------------------
+Total:6         Dynamic:5       Static:0     Interface:1    
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip pool interface Vlanif1 used 
+  Pool-name        : Vlanif1
+  Pool-No          : 0
+  Lease            : 1 Days 0 Hours 0 Minutes
+  Domain-name      : -
+  DNS-server0      : 1.1.1.1         
+  DNS-server1      : 8.8.8.8         
+  NBNS-server0     : -               
+  Netbios-type     : -               
+  Position         : Interface       
+  Status           : Unlocked
+  Gateway-0        : -               
+  Network          : 10.0.1.0
+  Mask             : 255.255.255.0
+  VPN instance     : --
+  Logging          : Disable
+  Conflicted address recycle interval: -
+  Address Statistic: Total       :254       Used        :21         
+                     Idle        :0         Expired     :0          
+                     Conflict    :1         Disabled    :232        
+                     Ping        :1         Decline     :0          
+                     Auth        :0      
+
+ -------------------------------------------------------------------------------------
+  Network section 
+         Start           End       Total    Used Idle(Expired) Conflict Disabled
+ -------------------------------------------------------------------------------------
+        10.0.1.1      10.0.1.254     254      21          0(0)       1   232
+ -------------------------------------------------------------------------------------
+ Client-ID format as follows:            
+   DHCP  : mac-address                 PPPoE   : mac-address            
+   IPSec : user-id/portnumber/vrf      PPP     : interface index            
+   L2TP  : cpu-slot/session-id         SSL-VPN : user-id/session-id
+ -------------------------------------------------------------------------------------
+  Index              IP             Client-ID    Type       Left   Status           
+ -------------------------------------------------------------------------------------
+    199      10.0.1.200        0000-5e00-5365    DHCP      85619   Used             
+    200      10.0.1.201        0000-5e00-5366    DHCP      63487   Used             
+    201      10.0.1.202        0000-5e00-5361    DHCP      43112   Used             
+    202      10.0.1.203        0000-5e00-5367    DHCP      82136   Used             
+    203      10.0.1.204        0000-5e00-5368    DHCP      82648   Used             
+#  … 15 more leases cut …
+    217      10.0.1.218        0000-5e00-5369    DHCP      81271   Used             
+    218      10.0.1.219        0000-5e00-536a    DHCP      78200   Used             
+    219      10.0.1.220        0000-5e00-536b    DHCP      78588   Used             
+ -------------------------------------------------------------------------------------
+<AR730_XXXXXXXXXXXXXXXXXXXX>display arp interface Vlanif10
+IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE 
+                                    VLAN/CEVLAN(SIP/DIP)      PVC
+------------------------------------------------------------------------------
+10.0.10.1       0000-5e00-5300            I -         Vlanif10       
+------------------------------------------------------------------------------
+Total:1         Dynamic:0       Static:0     Interface:1    
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip pool interface Vlanif10 used 
+  Pool-name        : Vlanif10
+  Pool-No          : 1
+  Lease            : 7 Days 0 Hours 0 Minutes
+  Domain-name      : -
+  DNS-server0      : 1.1.1.1         
+  DNS-server1      : 8.8.8.8         
+  NBNS-server0     : -               
+  Netbios-type     : -               
+  Position         : Interface       
+  Status           : Unlocked
+  Gateway-0        : -               
+  Network          : 10.0.10.0
+  Mask             : 255.255.255.0
+  VPN instance     : --
+  Logging          : Disable
+  Conflicted address recycle interval: -
+  Address Statistic: Total       :254       Used        :0          
+                     Idle        :254       Expired     :0          
+                     Conflict    :0         Disabled    :0          
+                     Ping        :0         Decline     :0          
+                     Auth        :0      
+
+# NOTE: with Used = 0 the reply ends here. There is no "Network section" block
+# and no lease table at all, so a parser must treat their absence as "no leases",
+# not as a malformed reply.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display mac-address
+--------------------------------------------------------------------------------------------------------------
+MAC Address       VLAN/Bridge/VSI/BD      Learned-From               Type      Vpn                            
+--------------------------------------------------------------------------------------------------------------
+0000-5e00-5370       1/-/-/-              GE0/0/1                    dynamic   public                         
+0000-5e00-5363       1/-/-/-              GE0/0/1                    dynamic   public                         
+0000-5e00-5364       1/-/-/-              GE0/0/1                    dynamic   public                         
+0000-5e00-5361       1/-/-/-              GE0/0/2                    dynamic   public                         
+0000-5e00-5371      20/-/-/-              GE0/0/2                    dynamic   public                         
+0000-5e00-5372      20/-/-/-              GE0/0/2                    dynamic   public                         
+0000-5e00-5373      20/-/-/-              GE0/0/2                    dynamic   public                         
+#  … 150 more VLAN 20 entries cut, all learned from GE0/0/2 …
+0000-5e00-5363      20/-/-/-              GE0/0/2                    dynamic   public                         
+0000-5e00-5364      20/-/-/-              GE0/0/2                    dynamic   public                         
+0000-5e00-5365      20/-/-/-              GE0/0/2                    dynamic   public                         
+
+--------------------------------------------------------------------------------------------------------------
+Total items displayed = 161 
+
+# NOTE: the same MAC appears in VLAN 1 and in VLAN 20 (0000-5e00-5363/64/65
+# above). A MAC entry is per (MAC, VLAN) pair, not per device, so the table
+# cannot be keyed by MAC alone.
+
+==============================================================================
+# A VLAN that exists but no port carries: VLAN 60
+# captured 2026-09-17
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display vlan 60
+* : management-vlan
+---------------------
+VLAN ID Type         Status   MAC Learning Broadcast/Multicast/Unicast Property 
+--------------------------------------------------------------------------------
+60      common       enable   enable       forward   forward   forward default  
+# NOTE: no "Untagged Port:" and no "Tagged Port:" block at all. The reply simply
+# ends after the VLAN row, which is how a VLAN with no member port looks.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration interface GigabitEthernet0/0/2
+[V300R024C00SPC100]
+#
+interface GigabitEthernet0/0/2
+ description LINK-TO-CORE-SWITCH
+ port link-type trunk
+ port trunk allow-pass vlan 10 20
+#
+return
+# NOTE: VLAN 1 is not in the allow-pass list yet MAC entries for VLAN 1 really are
+# learned from this port — on VRP a trunk permits VLAN 1 by default and the line is
+# not printed. The port's PVID is 1, so every untagged frame from the core switch
+# lands in VLAN 1.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display mac-address vlan 60
+--------------------------------------------------------------------------------------------------------------
+MAC Address       VLAN/Bridge/VSI/BD      Learned-From               Type      Vpn                            
+--------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------
+Total items displayed = 0 
+
+==============================================================================
+# The other shape of a network: a dot1q sub-interface, not a Vlanif
+# captured 2026-09-17
+==============================================================================
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip interface brief
+Interface                         IP Address/Mask      Physical   Protocol  
+Vlanif1                           10.0.1.1/24          up         up        
+Vlanif20                          10.0.20.1/23         up         up        
+XGigabitEthernet0/0/0             unassigned           up         down      
+XGigabitEthernet0/0/0.30          10.0.30.1/24         up         up        
+XGigabitEthernet0/0/0.60          10.0.60.1/24         up         up        
+XGigabitEthernet0/0/0.70          10.0.70.1/23         up         up        
+# NOTE: the parent XGigabitEthernet0/0/0 is "up / down" and unassigned; only its
+# sub-interfaces carry addresses. Protocol down on the parent is normal here.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration interface XGigabitEthernet0/0/0
+[V300R024C00SPC100]
+#
+interface XGigabitEthernet0/0/0
+ description UPLINK-TO-CORE-SWITCH
+#
+return
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration interface XGigabitEthernet0/0/0.60
+[V300R024C00SPC100]
+#
+interface XGigabitEthernet0/0/0.60
+ dot1q termination vid 60
+ ip address 10.0.60.1 255.255.255.0
+ dhcp select interface
+ dhcp server excluded-ip-address 10.0.60.2 10.0.60.99 
+ dhcp server dns-list 1.1.1.1 8.8.8.8 
+#
+return
+# NOTE: "dot1q termination vid 60" is what ties the sub-interface to VLAN 60. The
+# .60 suffix matching the VID is a convention here, not a guarantee - read the vid.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display arp interface XGigabitEthernet0/0/0.60
+IP ADDRESS      MAC ADDRESS     EXPIRE(M) TYPE        INTERFACE   VPN-INSTANCE 
+                                    VLAN/CEVLAN(SIP/DIP)      PVC
+------------------------------------------------------------------------------
+10.0.60.1       0000-5e00-5300            I -         XGE0/0/0.60    
+10.0.60.236     0000-5e00-5380  20        D-0         XGE0/0/0.60    
+                                            60/-      
+10.0.60.151     0000-5e00-5381  4         D-0         XGE0/0/0.60    
+                                            60/-      
+10.0.60.166     Incomplete      1         D-0         XGE0/0/0.60    
+------------------------------------------------------------------------------
+Total:10        Dynamic:9       Static:0     Interface:1    
+# NOTE: an entry may read "Incomplete" instead of a MAC - the router asked and got
+# no answer. Such a row has no MAC to key on and is skipped by the parser.
+<AR730_XXXXXXXXXXXXXXXXXXXX>display ip pool interface XGigabitEthernet0/0/0.60 used 
+  Pool-name        : XGigabitEthernet0/0/0.60
+  Pool-No          : 4
+  Lease            : 1 Days 0 Hours 0 Minutes
+  Position         : Interface       
+  Network          : 10.0.60.0
+  Mask             : 255.255.255.0
+  Address Statistic: Total       :254       Used        :143        
+                     Idle        :12        Expired     :12         
+                     Conflict    :1         Disabled    :98         
+                     Ping        :1         Decline     :0          
+                     Auth        :0      
+
+ -------------------------------------------------------------------------------------
+  Network section 
+         Start           End       Total    Used Idle(Expired) Conflict Disabled
+ -------------------------------------------------------------------------------------
+       10.0.60.1     10.0.60.254     254     143        12(12)       1    98
+ -------------------------------------------------------------------------------------
+  Index              IP             Client-ID    Type       Left   Status           
+ -------------------------------------------------------------------------------------
+     99     10.0.60.100        0000-5e00-5382    DHCP      64819   Used             
+#  … 140 more leases cut …
+    253     10.0.60.254        0000-5e00-5383    DHCP      71999   Used             
+ -------------------------------------------------------------------------------------
+# NOTE: "Disabled : 98" is exactly the excluded-ip-address range 10.0.60.2-99, so a
+# pool's usable size is Total minus Disabled: here 155, of which 12 are free.

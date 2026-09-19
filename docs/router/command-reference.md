@@ -64,6 +64,10 @@ Status legend:
 | `mac-authen username macaddress format without-hyphen password cipher PW` | mac-access-profile | ✅ | `Info: The password should meet the complexity check requirement.` This is **accepted**. Confirm with `display this`: the cipher text changes. |
 | MAC account creation (app): `local-user MAC12 service-type 8021x` / `password cipher PW` / `user-group G` | aaa | ✅ (via app) | The order matters. The password must equal the profile's shared password, otherwise the device is rejected and the account **blocks itself** after repeated failures. |
 | `cut access-user user-id N` | — | ❓ | Used by the app to drop a session; reply not captured in these sessions. |
+| `cut access-user ?` | **user** and **system** | ⛔ | `Error: Unrecognized command found at '^' position.` (caret under `cut`) in both. |
+| `cut access-user ?` | **aaa** | ✅ | The only view that accepts it. Keys: `access-slot`, `access-type`, `domain`, `interface`, `ip-address`, `mac-address`, `service-scheme`, `ssid`, `user-group`, `user-id`, `username`. So a whole interface, domain, user-group or SSID can be cut in one command. It acts on **access users only** — a network with no `authentication-profile` has no session to cut. This confirms the app's revoke sequence (system-view → aaa → … → `cut access-user mac-address`) uses the right view. |
+| `display dhcp ?` | user | ✅ | `client`, `configuration`, `option`, `option82`, `relay`, `server` (group), `snooping` (group), `static`, `statistics`. There is no top-level user-info keyword; anything about leased hostnames would sit under `server`. |
+| `display dhcp server ?` | user | ✅ | `configuration`, `database`, `group`, `statistics` — and nothing else. **This firmware exposes no DHCP hostnames** (no user-info), so option 12 cannot be used to identify a device; the MAC's OUI and the randomised-MAC bit are all the router offers. |
 | `local-user MAC12 ?` | aaa | ❓ | Would list the account attributes; asked but not run. |
 
 ## 3. Internet lines: interfaces, routes, NQA
@@ -80,7 +84,7 @@ Status legend:
 | `display ip routing-table 0.0.0.0 0 verbose` | ✅ | One block per default route. See the route states below. |
 | `display ip routing-table 149.112.112.112` | ✅ | Short table; shows which next hop a probe address really uses. |
 | `display current-configuration \| include ip route-static` | ✅ | `ip route-static 0.0.0.0 0.0.0.0 192.168.1.1 track nqa admin w1icmp` |
-| `display current-configuration configuration nqa` | ✅ | `nqa test-instance admin NAME` / `test-type` / `destination-address ipv4` / `frequency` / `timeout` / `probe-count` / `start now` |
+| `display current-configuration configuration nqa` | ✅ | `nqa test-instance admin NAME` / `test-type` / `destination-address ipv4` / `frequency` / `timeout` / `start now`. It prints **only non-default values**: `probe-count 3` never appears although every test really does send 3 probes (visible as `T/H/P` `…/1/1..3` in the history), while a `fail-percent 30` that was set does appear. So this dump is the way to check whether an experiment is still in place — and `undo probe-count`, not `probe-count 3`, is what restores the original. |
 | `display nqa results test-instance admin NAME` | ✅ | Up to 5 blocks `N . Test K result The test is finished` with `Completion:success\|failed`, `Destination ip address:`, `Min/Max/Average Completion Time: a/b/c`, `Lost packet ratio: 0 %`. |
 | `display nqa history test-instance admin NAME` | ✅ | `Index T/H/P Response Status Address Time`, e.g. `14  102/1/1  2000ms timeout  192.0.2.1 …` |
 | `display current-configuration \| include dns` | ✅ | `dns server 8.8.8.8`, `dhcp server dns-list 1.1.1.1 8.8.8.8`, … |
@@ -104,6 +108,8 @@ routes share the load.
 | `ping -c 20 192.168.1.1` | ✅ | `Reply from …: bytes=56 Sequence=1 ttl=64 time=1 ms`, then `--- statistics ---`, `0.00% packet loss`, `round-trip min/avg/max = 1/1/1 ms` |
 | `ping -c 5 -nexthop 192.168.4.1 8.8.8.8` | ✅ | Forces the probe through one line. `-nexthop` takes `IP_ADDR<X.X.X.X>`. |
 | `ping -nexthop q` | ⛔ | `Error: Wrong parameter found at '^' position.` |
+| `ping …` from inside an `nqa test-instance` view | ✅ | Works there as well as in the user view (`ping` is listed in that view). |
+| `ping -c 20 -s 1400 -t 1000 -nexthop GW DEST` | ✅ | `-s` sets the payload (default 56); the echo reply carries the same size, so no special destination is needed. 1400 stays under the 1500 MTU, and without `-f` there is no DF bit to make fragmentation look like loss. This is the probe that exposes a throttled line — see [lessons-learned.md](lessons-learned.md#L15). |
 
 ### NQA probes and tracked routes
 
@@ -115,6 +121,18 @@ routes share the load.
 | `destination-port 443` | nqa | ✅ | `Warning: The specified port is a well-known port, and it is possible to conflict.` (accepted) |
 | `frequency 10` + `timeout 2` on **icmp**, then `start now` | nqa | ✅ | `Warning: It is recommended that the frequency be greater than 14. Otherwise, the test result may be incorrect.` → use `frequency 15`. |
 | `probe-count 3`, `start now`, `undo start` | nqa | ✅ | Silent. |
+| `threshold ?` | nqa | ✅ | Only three keywords: `owd-ds`, `owd-sd`, `rtd` (round-trip delay threshold). `threshold` sits beside `send-trap`, `probe-failtimes` and `test-failtimes`, so it most likely only raises traps; whether crossing it fails the test (and withdraws a tracked route) is ❓ untested. |
+| `?` (bare, inside a probe) | nqa | ✅ | Full listing of the NQA view; see [captures/02-wan-nqa-routing.txt](captures/02-wan-nqa-routing.txt). Of interest: `fail-percent` ("Set NQA test fail percent"), `probe-count`, `interval`, `timeout`, `datasize`, `tos`, `source-interface`. |
+| `fail-percent ?` | nqa | ✅ | `INTEGER<1-100>  Fail percent number` — one keyword only. |
+| `fail-percent 30` | nqa | ✅ | Takes effect on the next test: with the default 3 probes, losing 1 of 3 turns `Completion:success` into `Completion:failed` and `Lost packet ratio: 33 %`. |
+| any parameter (incl. `undo fail-percent`) while the test runs | nqa | ⛔ | `Error: The test is in progress, parameters cannot be changed.` Every change needs `undo start` first and `start now` afterwards — and while the test is stopped, a route tracking it is withdrawn. |
+| `datasize ?` | nqa | ✅ | `INTEGER<0-8100>  Data size (bytes) in an NQA test packet. If the configured data size is smaller than the default packet length, the default packet length is used` |
+| `interval ?` | nqa | ✅ | Two keywords, so the unit is explicit: `interval milliseconds N` or `interval seconds N`. |
+| `interval milliseconds ?` | nqa | ✅ | `INTEGER<10-60000>  Milliseconds number` — the parser offers the range in every test view; the refusal below comes later, from the test type. |
+| `interval milliseconds 20` on **icmp** | nqa | ⛔ | `Error: The test type does not support intervals at the millisecond level.` Only `interval seconds N` is available to an ICMP test, which caps the load one probe can offer at `datasize` bytes per second — 64.8 kbit/s at the 8100-byte maximum. |
+| `fail-percent 50`, `datasize 8100`, `probe-count 5`, `timeout 1`, `frequency 300` | nqa | ✅ | All silent, after `undo start`. |
+| tracked route under `fail-percent` | — | ✅ | It **toggles**, it does not stay down: the route follows every single test, so on a line losing ~26% it went Active → Invalid → Active within minutes. Tested 2026-09-16 on wan2; see [lessons-learned.md](lessons-learned.md#L14). `Age` does not reset on the toggle — only `State`/`Flags` (`RD` ↔ `R`) change. |
+| `system-view` from inside an `nqa test-instance` view | nqa | ⛔ | `Error: Unrecognized command found at '^' position.` Leave with `quit` or `return` first. |
 | probe settings pasted in **system** view | system | ⛔ | `Error: Unrecognized command` on every line (they belong inside `nqa test-instance`). |
 | `undo nqa test-instance admin NAME` while running | system | ⛔ | `Error: The test is in progress, it cannot be deleted.` Run `undo start` inside the probe first; then it is silent. |
 | `ip route-static 0.0.0.0 0.0.0.0 GW track nqa admin NAME` | system | ✅ | Silent. `track ?` offers `bfd-session efm-state nqa route-monitor-group`. |
@@ -168,7 +186,25 @@ routes share the load.
 SSH is limited by `acl 2999 inbound` under `user-interface vty`. Management ACLs match source IP
 only, which is why a device is pinned by DHCP binding + static ARP (anti-spoofing) and not by MAC.
 
-## 5. Portal local server and SFTP
+## 5. VLANs and their clients
+
+All read-only. Captured 2026-09-17 in `captures/05-vlan-clients.txt`.
+
+| Command | Status | Reply / notes |
+|---|---|---|
+| `display vlan` | ✅ | `The total number of vlans is : 13`, then one row per VLAN: `VLAN ID Type Status MAC Learning Broadcast/Multicast/Unicast Property`. **No ports and no description** — those need `display vlan N`. The VLAN list is *not* the Vlanif list: the device has 13 VLANs but only 5 have a `Vlanif` (1, 10, 20, 103, 104); VLANs 30-70 and 105-107 exist with no IP interface, so they have no ARP table and no DHCP pool. |
+| `display mac-address` | ✅ | `MAC Address / VLAN/Bridge/VSI/BD / Learned-From / Type / Vpn`, ending with `Total items displayed = 161`. The VLAN column is `20/-/-/-`; `Learned-From` is the physical port. An entry is per (MAC, VLAN) pair — the same MAC appears once for VLAN 1 and once for VLAN 20 — so the table must not be keyed by MAC alone. This is the **only complete** list of who is on a VLAN: on 2026-09-17 VLAN 20 had ~150 MAC entries against 26 ARP entries. |
+| `display vlan 60`, VLAN with **no member port** | ✅ | The reply ends after the VLAN row: no `Untagged Port:` block, no `Tagged Port:` block. That is how "no port carries this VLAN" looks — not an error. |
+| `display mac-address vlan 60` | ✅ | Same columns as the bare form, an empty body and `Total items displayed = 0`. |
+| `display current-configuration interface GigabitEthernet0/0/2` | ✅ | `description LINK-TO-CORE-SWITCH`, `port link-type trunk`, `port trunk allow-pass vlan 10 20`. **VLAN 1 is missing from that list yet VLAN 1 MACs are learned on this port**: a VRP trunk permits VLAN 1 by default and does not print it, and the port's PVID is 1, so every untagged frame from the core switch lands in VLAN 1. |
+| `display current-configuration interface XGigabitEthernet0/0/0.60` | ✅ | The **second shape of a network** on this device: `dot1q termination vid 60`, `ip address 10.0.60.1 255.255.255.0`, `dhcp select interface`, `dhcp server excluded-ip-address 10.0.60.2 10.0.60.99`, `dhcp server dns-list`. VLANs 30-70 live here, not on `Vlanif`. The `.60` suffix matching the VID is a local convention — read `dot1q termination vid`. |
+| `display arp interface XGigabitEthernet0/0/0.60` | ✅ | Same shape as a Vlanif, with `XGE0/0/0.60` in the interface column. A row may read `Incomplete` in place of the MAC: the router asked and got no answer, so there is no MAC to key on. |
+| `display ip pool interface XGigabitEthernet0/0/0.60 used` | ✅ | Identical shape to the Vlanif pool; `Pool-name` is the sub-interface. `Disabled` counts the `excluded-ip-address` range, so a pool's usable size is `Total - Disabled`. |
+| `display arp interface Vlanif1` | ✅ | Same shape as `Vlanif20`. Gives IP↔MAC↔port, but only for devices that have an address and have talked to the gateway. |
+| `display ip pool interface Vlanif10 used`, pool **empty** | ✅ | The reply **stops after `Address Statistic`**: with `Used : 0` there is no `Network section` block and no lease table at all. Absence of the table means "no leases", not a malformed reply. |
+| `display ip pool interface Vlanif1 used` | ✅ | Same shape as `Vlanif20`. Note `Disabled : 232` — addresses excluded from the pool count as neither used nor idle. |
+
+## 6. Portal local server and SFTP
 
 | Command | View | Status | Reply / notes |
 |---|---|---|---|

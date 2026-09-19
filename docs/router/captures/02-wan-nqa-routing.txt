@@ -2600,3 +2600,366 @@ ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.4.1 public
 ip route-static vpn-instance OPENSSHLINKVPORT 0.0.0.0 0.0.0.0 192.168.1.1 public
 <AR730_XXXXXXXXXXXXXXXXXXXX>
 
+
+# ---------------------------------------------------------------------------
+# help (?) for `threshold` inside an existing ICMP probe
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w1icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]threshold ?
+  owd-ds  Specify the one-way delay threshold from destination to source
+  owd-sd  Specify the one-way delay threshold from source to destination
+  rtd     Specify the round-trip delay threshold
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]
+
+# ---------------------------------------------------------------------------
+# full command listing (?) inside an existing ICMP probe
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]?
+NQA interface view commands:
+  adv-factor             Specify jitter-codec test advantage factor
+  agetime                Specify NQA agetime
+  alarm                  Alarm message
+  arp                    Specify ARP configuration information
+  arp-ping               ARP-ping
+  backup                 Backup  information
+  clear-records          Clear all the statistic of the NQA test
+  community              Specify the community name used in an NQA SNMP test
+  datafill               Specify NQA test packets payload string
+  datasize               Specify NQA test packets bytes
+  description            Specify NQA test description information
+  destination-address    Set destination-address
+  destination-port       Set destination-port
+  dialer                 Dialer
+  display                Display information
+  dns-server             Set DNS server
+  fail-percent           Set NQA test fail percent
+  forwarding-simulation  Simulate product forwarding
+  frequency              Specify NQA interval time between two continue same NQA
+                         test
+  ftp-filename           Specify NQA FTP operation filename
+  ftp-filesize           Specify NQA FTP operation filesize
+  ftp-operation          Specify NQA FTP test operation
+  ftp-password           Specify NQA FTP test used password
+  ftp-username           Specify NQA FTP test used username
+  hardware-based         Jitter packets are sent by hardware
+  http-operation         Specify NQA HTTP test operation
+  http-url               Specify NQA HTTP operation URL
+  icmp-jitter-mode       Specify the ICMP Jitter test packets format
+  interval               Set interval time between two packets
+  ip-forwarding          Specify the request packet forward by IP
+  jitter-codec           Specify jitter-codec type
+  jitter-packetnum       Set packets number
+  local-pw-id            Select local pw id
+  lsp-exp                Specify lsp test EXP value for echo requests to be sent
+  lsp-nexthop            Set nexthot-address
+  lsp-path               The path of LSP  
+  lsp-replymode          Specify lsp test reply mode
+  lsp-tetunnel           Specify lsp te tunnel interface
+  lsp-type               LSP ping/LSP jitter/LSP traceroute test type
+  lsp-version            Specify lsp version of protocol
+  mtrace                 Trace route to multicast source
+  nexthop                Nexthop information
+  packet-rewrite-check   Specify packet rewrite type
+  ping                   <Group> ping command group
+  probe-count            Specify NQA probe number in one test
+  probe-failtimes        Specify NQA test continue probe failure times to send  
+                         trap             
+  quit                   Exit from current mode and enter prior mode
+  records                Set max record   
+  remote-address         Set remote ip address
+  remote-pw-id           Select remote pw id
+  reset                  <Group> reset command group
+  restart                Restart the NQA test
+  return                 Enter the privileged mode
+  save                   <Group> save command group
+  screen-width           Set screen width 
+  send-trap              Specify trap generation condition
+  sendpacket             Specify send icmp packet router parameters
+  set-df                 Send packets do not fragment
+  source-address         Set source-address
+  source-interface       Specify NQA test source interface
+  source-port            Set source-port  
+  start                  Start this test  
+  stop                   Stop the NQA test
+  test-aaa               Accounts test    
+  test-failtimes         Specify NQA test continue test failure times to send   
+                         trap             
+  test-type              Specify NQA test type
+  threshold              Specify the threshold
+  timeout                Specify NQA probe timeout time
+  timestamp-unit         The unit of timestamp
+  tos                    Specify NQA test packet tos options
+  trace                  Trace route (switch) to host on Data Link Layer
+  tracert                <Group> tracert command group
+  tracert-hopfailtimes   Specify NQA tracert test continue hop failure times to 
+                         stop test        
+  tracert-livetime       Set the livetime of tracert test
+  ttl                    Specify NQA test packet TTL value
+  ttl-copymode           The copy mode of TTL
+  undo                   Negate a command or set its defaults
+  vc-type                Select type of the protocol establishing the pw
+  vlan                   Specify a VLAN ID
+  vpn-instance           Specify VPN Instance
+  vsi                    Specify a vsi name
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]
+
+# ---------------------------------------------------------------------------
+# wan2 (quota exhausted, "slow" in the app) pinged from inside the nqa view:
+# ping runs there too, and the line looks perfect — 0% loss, 70 ms flat
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]ping -c 20 -t 1000 -nexthop 192.168.2.1 94.140.14.14
+  PING 94.140.14.14: 56  data bytes, press CTRL_C to break
+    Reply from 94.140.14.14: bytes=56 Sequence=1 ttl=56 time=71 ms
+    Reply from 94.140.14.14: bytes=56 Sequence=2 ttl=56 time=70 ms
+    Reply from 94.140.14.14: bytes=56 Sequence=3 ttl=56 time=71 ms
+
+  --- 94.140.14.14 ping statistics ---
+    20 packet(s) transmitted
+    20 packet(s) received
+    0.00% packet loss
+    round-trip min/avg/max = 70/70/72 ms
+
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w1icmp]
+
+# ---------------------------------------------------------------------------
+# wan2 with its monthly quota used up: NQA history shows ~26% of probes timing
+# out (1/3, sometimes 2/3, per test) while the port is almost idle (0.03%
+# utilisation, zero errors/discards). The loss is upstream policing, not local
+# congestion, and the route stayed Active throughout (default fail-percent).
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+[AR730_XXXXXXXXXXXXXXXXXXXX]display nqa history test-instance admin w2icmp
+ NQA entry(admin, w2icmp) history:
+Index T/H/P       Response Status       Address         Time                 
+ 1    10224/1/3       60ms success      94.140.14.14    2026-09-16 14:10:13.980 
+ 9    10227/1/2       90ms success      94.140.14.14    2026-09-16 14:10:56.790 
+ 12   10228/1/2     2000ms timeout      94.140.14.14    2026-09-16 14:11:14.940 
+ 13   10228/1/3       70ms success      94.140.14.14    2026-09-16 14:11:17.010 
+ 14   10229/1/1     2000ms timeout      94.140.14.14    2026-09-16 14:11:26.430 
+ 15   10229/1/2      100ms success      94.140.14.14    2026-09-16 14:11:29.010 
+ 16   10229/1/3     2000ms timeout      94.140.14.14    2026-09-16 14:11:34.940 
+ 20   10231/1/1     2000ms timeout      94.140.14.14    2026-09-16 14:11:58.400 
+ 21   10231/1/2     2000ms timeout      94.140.14.14    2026-09-16 14:12:02.400 
+ 22   10231/1/3      110ms success      94.140.14.14    2026-09-16 14:12:04.520 
+ 35   10236/1/1      290ms success      94.140.14.14    2026-09-16 14:13:17.310 
+ 50   10241/1/1      110ms success      94.140.14.14    2026-09-16 14:14:36.100 
+# (50 rows in total; 13 of them timeout — tests 10228..10240 lose 1/3 or 2/3)
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+[AR730_XXXXXXXXXXXXXXXXXXXX]display interface GigabitEthernet0/0/8
+GigabitEthernet0/0/8 current state : UP
+Line protocol current state : UP
+Last line protocol up time : 2026-09-16 13:30:22 UTC+02:00
+Description:WAN2
+Route Port,The Maximum Transmit Unit is 1500
+Internet Address is 192.168.2.250/24
+IP Sending Frames' Format is PKTFMT_ETHNT_2, Hardware address is 0000-5e00-5308
+Last physical up time   : 2026-09-16 13:30:22 UTC+02:00
+Last physical down time : 2026-09-09 06:52:47
+Current system time: 2026-09-16 14:14:53+02:00
+Port Mode: AUTO COPPER
+Speed : 1000,  Loopback: NONE
+Duplex: FULL,  Negotiation: ENABLE
+Mdi   : AUTO,  Clock   : -
+Last 300 seconds input rate 121120 bits/sec, 43 packets/sec
+Last 300 seconds output rate 213528 bits/sec, 64 packets/sec
+Input peak rate 228312 bits/sec,Record time: 2026-09-16 13:42:06
+Output peak rate 533688 bits/sec,Record time: 2026-09-16 14:04:16
+
+Input:  126865 packets, 40577850 bytes
+  Unicast:             114444,  Multicast:                2375
+  Broadcast:            10046,  Jumbo:                       -
+  Discard:                  0,  Total Error:                 0
+
+  CRC:                      0,  Giants:                      0
+  Jabbers:                  0,  Throttles:                   0
+  Runts:                    0,  Symbols:                     0
+  Ignoreds:                 0,  Frames:                      0
+                                          
+Output:  180002 packets, 69067307 bytes   
+  Unicast:             178098,  Multicast:                  88
+  Broadcast:             1816,  Jumbo:                       -
+  Discard:                  0,  Total Error:                 0
+                                          
+  Collisions:               0,  ExcessiveCollisions:         0
+  Late Collisions:          0,  Deferreds:                   0
+                                          
+    Input bandwidth utilization threshold : 100.00%
+    Output bandwidth utilization threshold: 100.00%
+    Input bandwidth utilization  : 0.01%  
+    Output bandwidth utilization : 0.03%  
+                                          
+[AR730_XXXXXXXXXXXXXXXXXXXX]
+
+# ---------------------------------------------------------------------------
+# fail-percent help; system-view is not accepted inside the nqa view
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+Error: Unrecognized command found at '^' position.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w2icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]fail-percent ?
+  INTEGER<1-100>  Fail percent number
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]
+
+# ---------------------------------------------------------------------------
+# fail-percent 30 on w2icmp (probe-count 3): accepted silently while the test
+# was running, no undo start needed. A test losing 1 of 3 probes now reports
+# Completion:failed, and the tracked route TOGGLES with every test (~15 s):
+# five readings of the same command gave Active, Invalid, Active, Active,
+# Active. Age does NOT reset across the toggle, so only State/Flags show it.
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]display ip routing-table 0.0.0.0 0 verbose
+(reading 1)
+Destination: 0.0.0.0/0
+     Protocol: Static           Process ID: 0
+   Preference: 60                     Cost: 0
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h17m11s
+          Tag: 0                  Priority: medium
+        Label: NULL                QoSInfo: 0x0
+   IndirectID: 0x80000003                 
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/8
+     TunnelID: 0x0                   Flags: RD
+(reading 2, about one minute later)
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Invalid Adv Relied      Age: 00h18m12s
+ RelayNextHop: 0.0.0.0           Interface: GigabitEthernet0/0/8
+     TunnelID: 0x0                   Flags: R
+(reading 3)
+      NextHop: 192.168.2.1       Neighbour: 0.0.0.0
+        State: Active Adv Relied       Age: 00h18m46s
+     TunnelID: 0x0                   Flags: RD
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]display nqa results test-instance admin w2icmp
+ 
+ NQA entry(admin, w2icmp) :testflag is active ,testtype is icmp 
+  1 . Test 10302 result   The test is finished
+   Send operation times: 3              Receive response times: 3          
+   Completion:success                   RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:0         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:94.140.14.14                                   
+   Min/Max/Average Completion Time: 60/70/66                             
+   Sum/Square-Sum  Completion Time: 200/13400                            
+   Last Good Probe Time: 2026-09-16 14:30:44.5                           
+   Lost packet ratio: 0 %                                                
+  2 . Test 10303 result   The test is finished
+   Send operation times: 3              Receive response times: 2          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:1         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:94.140.14.14                                   
+   Min/Max/Average Completion Time: 70/80/75                             
+   Sum/Square-Sum  Completion Time: 150/11300                            
+   Last Good Probe Time: 2026-09-16 14:31:00.3                           
+   Lost packet ratio: 33 %                                               
+  4 . Test 10305 result   The test is finished
+   Send operation times: 3              Receive response times: 1          
+   Completion:failed                    RTD OverThresholds number: 0       
+   Attempts number:1                    Drop operation number:0            
+   Disconnect operation number:0        Operation timeout number:2         
+   System busy operation number:0       Connection fail number:0           
+   Operation sequence errors number:0   RTT Status errors number:0         
+   Destination ip address:94.140.14.14                                   
+   Min/Max/Average Completion Time: 70/70/70                             
+   Sum/Square-Sum  Completion Time: 70/4900                              
+   Last Good Probe Time: 2026-09-16 14:31:23.3                           
+   Lost packet ratio: 66 %                                               
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]
+
+# ---------------------------------------------------------------------------
+# The 56-byte probe hides an exhausted quota; a 1400-byte probe exposes it.
+# Same minute, two lines. wan2 (quota used up) vs wan3 (healthy).
+# wan2 at 56 bytes was 70 ms / 0% loss (see the capture above); at 1400 bytes
+# it is 189 ms. The +119 ms of serialisation for 1344 extra bytes each way
+# implies a pipe of roughly 180 kbit/s — which matches the 213 kbit/s the port
+# counters showed at 0.03% utilisation: the line is saturated at its throttled
+# ceiling, not at its physical one. wan3 barely moves (50 -> 54 ms).
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -c 20 -s 1400 -t 1000 -nexthop 192.168.2.1 94.140.14.14
+  PING 94.140.14.14: 1400  data bytes, press CTRL_C to break
+    Reply from 94.140.14.14: bytes=1400 Sequence=1 ttl=56 time=191 ms
+    Reply from 94.140.14.14: bytes=1400 Sequence=13 ttl=56 time=191 ms
+    Request time out
+    Reply from 94.140.14.14: bytes=1400 Sequence=15 ttl=56 time=191 ms
+    Request time out
+
+  --- 94.140.14.14 ping statistics ---
+    20 packet(s) transmitted
+    18 packet(s) received
+    10.00% packet loss
+    round-trip min/avg/max = 180/189/192 ms
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>ping -c 20 -s 1400 -t 1000 -nexthop 192.168.3.1 9.9.9.9
+  PING 9.9.9.9: 1400  data bytes, press CTRL_C to break
+    Reply from 9.9.9.9: bytes=1400 Sequence=1 ttl=55 time=56 ms
+    Reply from 9.9.9.9: bytes=1400 Sequence=20 ttl=55 time=59 ms
+
+  --- 9.9.9.9 ping statistics ---
+    20 packet(s) transmitted
+    20 packet(s) received
+    0.00% packet loss
+    round-trip min/avg/max = 50/54/59 ms
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+# ---------------------------------------------------------------------------
+# A running test refuses every parameter change; datasize and interval help.
+# Note also what `display current-configuration configuration nqa` prints:
+# `fail-percent 30` (set by hand) appears, `probe-count 3` (a default) never does.
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+Enter system view, return user view with Ctrl+Z.
+[AR730_XXXXXXXXXXXXXXXXXXXX]nqa test-instance admin w2icmp
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]undo fail-percent
+Error: The test is in progress, parameters cannot be changed.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]datasize ?
+  INTEGER<0-8100>  Data size (bytes) in an NQA test packet. If the configured   
+                   data size is smaller than the default packet length, the     
+                   default packet length is used
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]interval ?
+  milliseconds  Set interval time in milliseconds
+  seconds       Set interval time in seconds
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]return   
+<AR730_XXXXXXXXXXXXXXXXXXXX>display current-configuration configuration nqa
+[V300R024C00SPC100]
+#
+nqa test-instance admin w2icmp            
+ test-type icmp                           
+ destination-address ipv4 94.140.14.14    
+ fail-percent 30                          
+ frequency 15                             
+ timeout 2                                
+ start now                                
+#                                         
+return                                    
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+# ---------------------------------------------------------------------------
+# The overload idea dies here: an ICMP test refuses millisecond intervals, so
+# it cannot offer more than `datasize` bytes per second (64.8 kbit/s at most).
+# captured 2026-09-16
+# ---------------------------------------------------------------------------
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]undo start
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]fail-percent 50
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]datasize 8100
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]interval milliseconds 20
+Error: The test type does not support intervals at the millisecond level.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]probe-count 5
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]timeout 1
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]frequency 300
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]start now
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]
+
+# The parser offers a millisecond range even where the test type refuses it.
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]interval milliseconds ?
+  INTEGER<10-60000>  Milliseconds number
+[AR730_XXXXXXXXXXXXXXXXXXXX-nqa-admin-w2icmp]
