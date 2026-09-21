@@ -9,7 +9,7 @@ stay readable by whoever inherits it — please keep that in mind when proposing
 git clone https://github.com/AFZ92/huawei-ar730-router-easy-manager.git
 cd huawei-ar730-router-easy-manager
 pip install -r requirements.txt
-python ar730_manager.py --demo
+python ar730_qt.py --demo
 ```
 
 Demo mode needs no router, no network, and not even `paramiko`. Use it for everything except
@@ -18,35 +18,25 @@ changes that specifically touch SSH transport.
 ## Run the tests before you open a PR
 
 ```bash
-python harness/run_test.py        # full application flow
-python harness/run_demo_test.py   # demo mode
+QT_QPA_PLATFORM=offscreen python harness/run_qt_test.py
 ```
 
-Both must report every check passing. They need no display and no hardware.
+The test must report every check passing. It needs no display and no hardware.
 
 ## About the harness
 
-`harness/` contains a headless substitute for `tkinter` and a simulated AR730 that speaks VRP.
-The application is built for real and its buttons are pressed in order.
-
-The substitute implements **real widget behaviour**, not stubs that always succeed. Traces
-fire, bindings are recorded, `pack` order is tracked, `Treeview` refuses to delete a row that
-does not exist. That is deliberate: a test double that cannot fail proves nothing.
-
-**If you add a feature, extend the harness rather than skipping the test.** If a widget method
-you need is missing, implement it faithfully. Several bugs in this project's history were
-caught only because the harness modelled Tk closely enough to reproduce them.
+`harness/run_qt_test.py` starts the Qt application offscreen against the simulated AR730 and
+executes the supported flows. Extend it with each user-visible feature.
 
 ## Conventions
 
-- **One file.** The application lives in `ar730_manager.py`. Resist the urge to split it into
-  a package; it is meant to be read end to end.
-- **No new runtime dependencies** without discussion. `paramiko` is the only one.
-- **Comments explain *why*, not *what*.** Most comments in this codebase record a VRP
-  behaviour or a Tk constraint that is not obvious from the code. Match that.
+- **UI and engine.** `ar730_qt.py` owns the desktop UI; `ar730_manager.py` owns router protocol,
+  validation and the simulator.
+- **No new runtime dependencies** without discussion. The supported runtime is `PySide6` and
+  `paramiko`.
+- **Comments explain *why*, not *what*.** Most comments record a proven VRP behaviour.
 - **Every user-visible string goes in both `TXT` dictionaries** — English and Arabic.
-- **Respect layout direction.** Use the `_side()`, `_anchor()`, `_pad()` and `_justify()`
-  helpers instead of hardcoding `"left"` / `"w"`. RTL is not an afterthought here.
+- **Respect layout direction.** Verify both Qt LTR and RTL layouts. RTL is not an afterthought.
 - **Verify writes.** Any new router operation must read the configuration back and confirm the
   change actually took hold. Never infer success from the absence of an error.
 

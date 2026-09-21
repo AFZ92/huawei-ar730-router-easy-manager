@@ -82,7 +82,7 @@ audit trail of who had access and when it was withdrawn.
 No hardware, no `paramiko`, no network:
 
 ```bash
-python ar730_manager.py --demo
+python ar730_qt.py --demo
 ```
 
 The simulator enforces the real constraints: it rejects inverted command ordering, rejects a
@@ -94,37 +94,16 @@ This is where you train a new staff member.
 
 ## Installation
 
-Requires **Python 3.9 or newer** with Tkinter.
+Requires **Python 3.9 or newer**.
 
 ```bash
 git clone https://github.com/AFZ92/huawei-ar730-router-easy-manager.git
 cd huawei-ar730-router-easy-manager
 pip install -r requirements.txt
-python ar730_manager.py
+python ar730_qt.py
 ```
 
-<details>
-<summary><b>Platform notes</b></summary>
-
-**Linux** — Tkinter is often packaged separately:
-
-```bash
-sudo apt install python3-tk      # Debian / Ubuntu
-sudo dnf install python3-tkinter # Fedora
-```
-
-**macOS** — the system Python ships **Tk 8.5**, which fails to render on current macOS
-releases and produces a blank window. Use a Python built against Tk 8.6 or newer:
-
-```bash
-brew install python-tk           # or install Python from python.org
-```
-
-The included `run.sh` resolves a suitable interpreter and the Tcl/Tk library paths for you.
-
-**Windows** — the bundled Python installer includes Tkinter; nothing extra is needed.
-
-</details>
+The included launchers start the Qt desktop application on macOS, Windows and Linux.
 
 ## Synchronising manager devices with Firebase
 
@@ -133,8 +112,8 @@ names, accounts and history in Firebase Firestore and keep them in sync with the
 devices: after each change, at launch, and every minute while it is running. If the internet is
 unavailable, the change remains local and is uploaded when connectivity returns.
 
-1. Create a Firebase project and a **Cloud Firestore** database. Enable **Email/Password** in
-   Authentication and create a dedicated sync account.
+1. Create a Firebase project and a **Cloud Firestore** database, then create a dedicated
+   service account with the minimum Firestore permissions required by your deployment.
 2. In Firestore Rules, allow authenticated users to access only the application's document:
 
 ```text
@@ -148,11 +127,14 @@ service cloud.firestore {
 }
 ```
 
-3. In **Settings**, enter the Web API Key, Project ID, and the sync account's e-mail and password,
-   then choose **Save Settings** or **Sync now**.
+3. In **Settings**, choose **Import Firebase credentials**, select the downloaded service-account
+   JSON file, then choose **Sync Firebase now**. The application copies the credential into its
+   local runtime directory with restricted permissions; its private key is never shown, logged or
+   sent to Firestore.
 
-Leaving the fields empty retains local-only storage. The SSH password and shared MAC-account
-password are never uploaded. Firebase connection details stay in each device's local settings file.
+Leaving credentials unconfigured retains local-only storage. The SSH password, shared MAC-account
+password and service-account credential are never uploaded. The former Web API Key login remains
+supported only for existing deployments.
 
 ## Configuration
 
@@ -240,13 +222,11 @@ Found a security problem? See [SECURITY.md](SECURITY.md).
 
 ## Testing
 
-The project ships a **headless harness**: a substitute for `tkinter` that implements the real
-widget behaviour, plus a simulated AR730 that speaks VRP. The whole application is constructed
-and its buttons pressed in the order a member of staff would press them.
+The project ships a **headless Qt harness** and a simulated AR730 that speaks VRP. The whole
+application is constructed and its controls are exercised in staff workflow order.
 
 ```bash
-python harness/run_test.py        # 196 checks — full application flow
-python harness/run_demo_test.py   #  14 checks — demo mode
+QT_QPA_PLATFORM=offscreen python harness/run_qt_test.py
 ```
 
 No display, no router, no network required — which is why it runs in CI on every push.
@@ -257,13 +237,10 @@ filtering, RTL layout mirroring, widget packing order, and window sizing.
 ## Project layout
 
 ```
-ar730_manager.py        the entire application — single file, no framework
+ar730_qt.py             official Qt desktop application
+ar730_manager.py        AR730 protocol engine, validation, local data and demo simulator
 harness/
-  run_test.py           full application flow, headless
-  run_demo_test.py      demo-mode checks
-  paramiko.py           simulated AR730 speaking VRP
-  tkinter/              headless substitute implementing real widget behaviour
-  make_preview.py       generates an HTML preview of the interface
+  run_qt_test.py        full Qt and demo-simulator flow, headless
 docs/
   router/               verified VRP command reference, terminal behaviour, lessons learned,
                         and sanitised captures from the real AR730
@@ -272,14 +249,14 @@ run.sh / run.bat        launchers
 build_windows.bat       produces a standalone .exe via PyInstaller
 ```
 
-The application is deliberately a **single file with no framework dependency** beyond
-`paramiko`. It is meant to be readable end to end by whoever inherits it.
+The desktop application uses **PySide6 (Qt)** and `paramiko`. Router command logic remains
+separate from UI code so validation and the offline simulator stay testable.
 
 ## Building a Windows executable
 
 ```bash
-pip install paramiko pyinstaller
-pyinstaller --onefile --windowed --name AR730Manager ar730_manager.py
+pip install -r requirements.txt pyinstaller
+pyinstaller --onefile --windowed --name AR730Manager ar730_qt.py
 ```
 
 Or double-click `build_windows.bat`. The result is `dist/AR730Manager.exe`, a single portable
@@ -325,7 +302,7 @@ Licensed under the [Apache License 2.0](LICENSE).
 **Powered by AFZ Systems**
 
 <sub>Keywords: Huawei AR730 · NetEngine · VRP · MAC authentication · 802.1X · captive portal ·
-network access control · NAC · MAC whitelist · router management GUI · Python · Tkinter ·
+network access control · NAC · MAC whitelist · router management GUI · Python · Qt ·
 SSH automation · RTL Arabic interface</sub>
 
 </div>

@@ -5,12 +5,12 @@ REM ===================================================================
 echo.
 echo [1/3] تثبيت المتطلبات...
 python -m pip install --upgrade pip
-python -m pip install paramiko pyinstaller
+python -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 goto fail
 
 echo.
 echo [2/3] بناء الملف التنفيذي...
-python -m PyInstaller --onefile --windowed --name AR730Manager --clean ar730_manager.py
+python -m PyInstaller --onefile --windowed --name AR730Manager --clean ar730_qt.py
 if errorlevel 1 goto fail
 
 echo.

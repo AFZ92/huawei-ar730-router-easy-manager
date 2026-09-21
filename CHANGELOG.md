@@ -7,7 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Qt is now the sole desktop interface and the default for all launchers, builds and demo mode.
+  The migration gate, handoff documents and Tkinter-only harnesses were removed; the retained
+  AR730 engine continues to provide protocol validation and the offline router simulator.
+
 ### Added
+
+- Qt now exposes the remaining production pages: Management Devices, Internet Lines,
+  Permission Groups, Settings/Firebase and the masked command log. The new controls use the
+  existing router read/write primitives, preserve the manual WAN last-line guard, provide explicit
+  confirmation for management and routing changes, and stop the Qt WAN timer on disconnect/close.
+
+- The modern Qt preview can now add a Trusted Device. Its focused Arabic dialog uses the same
+  shared AR730 operation as the production Tkinter interface, including MAC validation, the
+  required command order, post-write AAA verification, and local audit record.
+
+- Trusted Devices in the Qt preview can now update a selected device's descriptive name and note.
+  This edit remains local-only, preserves the selected row, and never sends a router command.
+
+- Trusted Devices in the Qt preview can now change a selected device's permission group. The
+  confirmation dialog makes the session cut explicit; the shared AR730 operation re-reads AAA
+  before updating the local audit record.
+
+- Trusted Devices in the Qt preview can now revoke a selected device. The dialog records an
+  optional reason and makes the irreversible router deletion explicit; the shared operation
+  verifies the account is absent before marking the local record revoked.
+
+- Trusted Devices in the Qt preview can now export a UTF-8 CSV compatible with Excel. Its data
+  includes active accounts as well as locally archived and missing records, matching the legacy
+  table rather than silently dropping them.
+
+- Trusted Devices in the Qt preview now has its own refresh action. It uses the shared read path,
+  so it refreshes account states without changing router configuration.
+
+- Portal Accounts in the Qt preview can now update a selected account's descriptive name and note.
+  The edit uses the shared local operation, keeps the account selected, and never sends a router
+  command. The Qt portal table now also retains revoked and missing local records.
+
+- Portal Accounts in the Qt preview can now export their complete visible data as an Excel-friendly
+  UTF-8 CSV, including local archived records.
+
+- Portal Accounts in the Qt preview now has its own read-only refresh action, which reloads
+  router account data without changing configuration.
+
+- Portal Accounts in the Qt preview can now add and verify a local web account using the shared
+  AR730 operation. The Arabic dialog masks the password and validates account, password, group,
+  and duplicate cases before writing to the router.
+
+- Portal Accounts in the Qt preview can now change a selected account password through the shared
+  AAA operation. The new password is masked in the dialog and excluded from local activity data.
+
+- Portal Accounts in the Qt preview can now change a selected account's permission group through
+  the existing AAA sequence. The dialog makes the required session cut explicit, and the local
+  record is updated only after the account group is confirmed by rereading AAA.
+
+- Portal Accounts in the Qt preview can now delete a selected account after an explicit warning.
+  The shared operation preserves the legacy AAA sequence, verifies the account is absent, then
+  archives the account and optional deletion reason locally.
+
+- The Qt preview now has a dedicated refresh action for the current access-user sessions. It reads
+  the live session table only and does not change AAA accounts or router configuration.
+
+- The Qt preview can now disconnect one selected access-user session. The confirmation names the
+  affected connection, uses the established AAA command sequence, and re-reads sessions to verify
+  the disconnect without changing the account itself.
+
+- The Qt preview can now add a selected live connection to Trusted Devices. MAC, IP, and current
+  account are read-only in the dialog; the existing shared device operation verifies AAA, and a
+  separate confirmation offers to disconnect the old session only after the account is added.
+
+- The Qt preview now reads the complete router VLAN inventory and the clients of the selected
+  network through the existing shared reader. It keeps the legacy distinction between switched
+  VLANs, addressed VLAN interfaces, and dot1q subinterfaces, while leaving network selection and
+  refresh strictly read-only.
+
+- Clients selected in the Qt network table can now be named locally. The dialog identifies the
+  MAC address and makes clear that naming neither changes the router nor makes a device trusted.
+
+- The Qt network table can now scan DHCP pools for cross-network leases using the same read-only
+  operation as the legacy interface. Affected rows identify the other VLAN and address, while the
+  network context calls out any pool nearing exhaustion.
+
+- The Qt network table can now disconnect one or several selected authenticated clients. It lists
+  the affected devices before confirmation, preserves their AAA accounts, and rereads the selected
+  network after the established access-user cut sequence.
 
 - Optional Firebase Firestore synchronization: the application always writes its local JSON
   copy first, uploads changes automatically when online, retries each minute while a change is

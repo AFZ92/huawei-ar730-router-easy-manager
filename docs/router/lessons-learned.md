@@ -31,7 +31,7 @@ working sessions against the production router (VRP V300R024C00SPC100) on 2026-0
   prompt regex treated that header as a `[HOST]` prompt, returned early, and every following reply
   shifted by one command.
 - **Rules:** match the prompt by the **hostname** from the banner, and drain stale bytes before each
-  command. The test simulator reproduces the pause (`harness/paramiko.py` `_Channel`), and a test adds
+  command. The offline router simulator reproduces the pause (`_DemoChannel` in `ar730_manager.py`), and a test adds
   three devices in a row.
 
 <a id="L3"></a>

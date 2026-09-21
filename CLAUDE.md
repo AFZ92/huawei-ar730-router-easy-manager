@@ -1,7 +1,7 @@
 # Working on this project
 
-A single-file Tkinter app (`ar730_manager.py`) that manages a production Huawei AR730 (VRP
-V300R024C00SPC100) over SSH.
+A Qt desktop application (`ar730_qt.py`) with a router engine (`ar730_manager.py`) that manages
+a production Huawei AR730 (VRP V300R024C00SPC100) over SSH.
 
 ## Before touching router commands
 
@@ -32,10 +32,9 @@ For the captive portal, read [`docs/portal/README.md`](docs/portal/README.md).
 
 ## Code and tests
 
-- Tests: `.venv/bin/python harness/run_test.py` and `.venv/bin/python harness/run_demo_test.py`.
-  Both must pass.
-- The simulators are `harness/paramiko.py` (tests) and `_DemoDevice`/`_DemoMgmt`/`_DemoWan` in
-  `ar730_manager.py` (`--demo`). A behaviour belongs in them only once it is recorded in
+- Tests: `QT_QPA_PLATFORM=offscreen .venv/bin/python harness/run_qt_test.py` must pass.
+- The simulator is `_DemoDevice`/`_DemoMgmt`/`_DemoWan` in `ar730_manager.py`, used by Qt
+  `--demo`. A behaviour belongs in it only once it is recorded in
   `docs/router/`.
 - User-facing text exists in both Arabic and English (`TXT`). Update both.
 - Add user-visible changes to `CHANGELOG.md` under `[Unreleased]`.

@@ -7,6 +7,8 @@ ar730_session.log
 demo_settings.json
 demo_devices.json
 demo_session.log
+firebase_service_account.json
+*-firebase-adminsdk-*.json
 
 # ---- Python ------------------------------------------------------------------
 __pycache__/

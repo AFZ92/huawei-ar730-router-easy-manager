@@ -32,9 +32,8 @@ run anything.
 
 The application ships two fake routers:
 
-- `harness/paramiko.py` (`FakeAR730`) is used by `harness/run_test.py`.
-- `_DemoDevice` / `_DemoMgmt` / `_DemoWan` in `ar730_manager.py` are used by `--demo` and
-  `run_demo_test.py`.
+- `_DemoDevice` / `_DemoMgmt` / `_DemoWan` in `ar730_manager.py` provide the offline router
+  used by Qt `--demo` and `harness/run_qt_test.py`.
 
 A behaviour belongs in a simulator **only after** it has been seen on the device and recorded here.
 When you add one, copy the reply text from `captures/`, not from memory.
@@ -67,6 +66,5 @@ These appear as ❓ in the command reference. Capture them once and move them to
 
 - `undo dhcp server static-bind ip-address IP` (expected to be the correct removal form)
 - `undo arp static IP` and `undo arp static IP MAC`
-- `cut access-user user-id N`
 - whether `POST /logout` from a custom portal page really ends the session
 - `local-user MAC12 ?` (is there any description attribute?)

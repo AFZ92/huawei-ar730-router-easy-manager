@@ -34,10 +34,17 @@ import datetime
 import csv
 import zlib
 import copy
+import base64
 import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+
+try:
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import padding
+except ImportError:
+    hashes = serialization = padding = None
 
 try:
     import tkinter as tk
@@ -126,6 +133,9 @@ DEFAULT_SETTINGS = {
     # نطاق حسابات البوابة — يُستخدم فقط عند فشل فصل الجلسة بالاسم المجرد
     "portal_domain": "portalusers",
     "ui_lang": "ar",
+    # Qt keeps its own preference so an existing Tk Arabic preference does not
+    # unexpectedly override the new application's English-first default.
+    "qt_ui_lang": "en",
     "auto_save_config": True,
     # خطوط أخرجها البرنامج من التوزيع: بوابة -> الفحص المربوط وسبب الإخراج،
     # كي تُعاد كما كانت حتى بعد إغلاق البرنامج
@@ -140,6 +150,8 @@ DEFAULT_SETTINGS = {
     "firebase_project_id": "",
     "firebase_email": "",
     "firebase_password": "",
+    # مسار محلي فقط لملف Firebase service-account؛ لا يُرفع ولا يُسجّل.
+    "firebase_service_account_file": "",
     "firebase_last_sync": "",
     "firebase_pending_sync": False,
 }
@@ -2822,7 +2834,8 @@ def mgmt_entries(st):
 
 FIREBASE_LOCAL_KEYS = set(("firebase_api_key", "firebase_project_id",
                            "firebase_email", "firebase_password",
-                           "firebase_last_sync", "firebase_pending_sync"))
+                           "firebase_service_account_file", "firebase_last_sync",
+                           "firebase_pending_sync"))
 
 
 class FirebaseSync(object):
@@ -2833,11 +2846,34 @@ class FirebaseSync(object):
 
     def __init__(self, settings):
         self.settings = settings
+        self._service_account_data = None
 
     def configured(self):
+        if self.settings.get("firebase_service_account_file"):
+            try:
+                self._service_account()
+                return True
+            except RuntimeError:
+                return False
         return all(str(self.settings.get(k, "")).strip() for k in
                    ("firebase_api_key", "firebase_project_id", "firebase_email",
                     "firebase_password"))
+
+    def _service_account(self):
+        """يقرأ اعتماد الخدمة محلياً فقط ويتحقق من أقل الحقول اللازمة."""
+        if self._service_account_data is not None:
+            return self._service_account_data
+        path = self.settings.get("firebase_service_account_file", "")
+        try:
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError):
+            raise RuntimeError("تعذر قراءة ملف بيانات اعتماد Firebase.")
+        required = ("project_id", "client_email", "private_key", "token_uri")
+        if data.get("type") != "service_account" or not all(data.get(key) for key in required):
+            raise RuntimeError("ملف Firebase ليس بيانات اعتماد service account صالحة.")
+        self._service_account_data = data
+        return data
 
     @staticmethod
     def _field(value):
@@ -2889,7 +2925,52 @@ class FirebaseSync(object):
         except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
             raise RuntimeError("Firebase: %s" % exc)
 
+    def _form_request(self, url, payload):
+        body = urllib.parse.urlencode(payload).encode("utf-8")
+        req = urllib.request.Request(url, data=body,
+                                     headers={"Content-Type": "application/x-www-form-urlencoded"},
+                                     method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=12) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
+            raise RuntimeError("Firebase: %s" % exc)
+
+    @staticmethod
+    def _b64url(value):
+        return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+    def _service_account_token(self, account):
+        """ينشئ JWT قصير العمر ويبدّله برمز OAuth لصلاحية Firestore فقط."""
+        if serialization is None:
+            raise RuntimeError("مكتبة cryptography مطلوبة لبيانات اعتماد Firebase.")
+        now = int(time.time())
+        header = self._b64url(json.dumps({"alg": "RS256", "typ": "JWT"},
+                                         separators=(",", ":")).encode("utf-8"))
+        claims = self._b64url(json.dumps({
+            "iss": account["client_email"],
+            "scope": "https://www.googleapis.com/auth/datastore",
+            "aud": account["token_uri"], "iat": now, "exp": now + 3600,
+        }, separators=(",", ":")).encode("utf-8"))
+        signed = (header + "." + claims).encode("ascii")
+        try:
+            private_key = serialization.load_pem_private_key(
+                account["private_key"].encode("utf-8"), password=None)
+            signature = private_key.sign(signed, padding.PKCS1v15(), hashes.SHA256())
+        except (TypeError, ValueError):
+            raise RuntimeError("تعذر استخدام المفتاح الخاص لبيانات اعتماد Firebase.")
+        reply = self._form_request(account["token_uri"], {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": signed.decode("ascii") + "." + self._b64url(signature),
+        })
+        token = reply.get("access_token")
+        if not token:
+            raise RuntimeError("لم تُرجع Firebase رمز وصول صالحاً.")
+        return token
+
     def _token(self):
+        if self.settings.get("firebase_service_account_file"):
+            return self._service_account_token(self._service_account())
         key = urllib.parse.quote(self.settings["firebase_api_key"], safe="")
         return self._request("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + key,
                              method="POST", payload={
@@ -2898,7 +2979,10 @@ class FirebaseSync(object):
                                  "returnSecureToken": True})["idToken"]
 
     def _url(self):
-        project = urllib.parse.quote(self.settings["firebase_project_id"], safe="")
+        project_id = self.settings.get("firebase_project_id", "")
+        if self.settings.get("firebase_service_account_file"):
+            project_id = self._service_account()["project_id"]
+        project = urllib.parse.quote(project_id, safe="")
         return ("https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents/%s/%s"
                 % (project, self.COLLECTION, self.DOCUMENT))
 
@@ -3075,6 +3159,378 @@ class LocalDB(object):
 
 
 # ----------------------------------------------------------------------------
+# خدمات العمليات المشتركة بين الواجهات
+# ----------------------------------------------------------------------------
+
+class ActionResult(object):
+    """نتيجة عملية لا تعتمد على Tkinter أو Qt.
+
+    ``code`` ثابت تستطيع كل واجهة ترجمته بلغتها وعرضه بالشكل المناسب لها،
+    فيما تبقى أوامر الراوتر والتحقق منها في موضع واحد.
+    """
+    def __init__(self, ok, code, users=None, states=None, online=None, data=None, error=""):
+        self.ok = ok
+        self.code = code
+        self.users = users
+        self.states = states
+        self.online = online
+        self.data = data
+        self.error = error
+
+
+class NetworkDeviceNameOperations(object):
+    """الأسماء المحلية لأجهزة ظهرت في جدول الشبكات، بلا أثر على الراوتر.
+
+    لا تستخدم ``set_device_meta`` هنا: ذلك ينشئ سجلاً في قائمة الأجهزة الموثوقة
+    لجهاز لم نمنحه الثقة. ``set_name`` يحفظ الاسم الحر مقابل MAC فقط، وهو السلوك
+    الأصلي لتبويب VLAN.
+    """
+    def __init__(self, db):
+        self.db = db
+
+    def update(self, mac12, name, note):
+        mac12 = normalize_mac(mac12)
+        if not mac12:
+            return ActionResult(False, "bad_mac")
+        name, note = (name or "").strip(), (note or "").strip()
+        if name == self.db.name_of(mac12) and note == self.db.note_of(mac12):
+            return ActionResult(True, "unchanged")
+        self.db.set_name(mac12, name, note)
+        self.db.log("name_device", mac12, name)
+        return ActionResult(True, "updated")
+
+
+class VlanOverlapOperations(object):
+    """فحص مجمّعات VLAN المشترك بين واجهتي Tkinter وQt.
+
+    لا يرسل هذا المسار إلا أوامر ``display ip pool`` الموثقة. وضع المقارنة
+    والسجل المحلي هنا كي لا يختلف معنى «فحص التداخل» بين الواجهتين.
+    """
+    def __init__(self, router, db):
+        self.router = router
+        self.db = db
+
+    def scan(self, networks):
+        if not networks:
+            return ActionResult(False, "missing_networks")
+        try:
+            scans = self.router.scan_pools(networks)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        report = overlap_report(scans)
+        self.db.log("scan_overlap", "", "%d/%d" % (len(report["dups"]), len(scans)))
+        return ActionResult(True, "scanned", data={"report": report, "scans": scans})
+
+
+class VlanSessionOperations(object):
+    """قطع جلسات عملاء شبكة محددة، مشترك بين واجهتي Tkinter وQt.
+
+    العملية لا تحذف حساب AAA ولا تغير إعداد VLAN. تظل حدودها جلسات access-user
+    فقط، وتبقى حماية الشبكة بلا مصادقة في موضع واحد.
+    """
+    def __init__(self, router, db):
+        self.router = router
+        self.db = db
+
+    def disconnect(self, vlan_state, macs):
+        state = vlan_state or {}
+        selected = []
+        for mac in macs or []:
+            mac12 = normalize_mac(mac)
+            if mac12 and mac12 not in selected:
+                selected.append(mac12)
+        if not selected:
+            return ActionResult(False, "missing_selection")
+        if not state.get("nac"):
+            return ActionResult(False, "no_authentication")
+        try:
+            replies = self.router.cut_users(selected)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        bad = [mac for mac, reply in replies.items() if first_error(reply)]
+        for mac12 in selected:
+            self.db.log("cut_user", mac12, state.get("iface", ""))
+        code = "disconnected" if not bad else "partial"
+        return ActionResult(not bad, code, data={"bad": bad, "replies": replies,
+                                                  "selected": selected})
+
+
+class TrustedDeviceOperations(object):
+    """عمليات حسابات MAC/802.1x بلا أي عنصر واجهة.
+
+    هذه أول خدمة انتقالية: تستعملها Tkinter الآن، وستستدعيها Qt عند اكتمال
+    حوارها واختبارات تكافؤها. لا تُخفى أخطاء الراوتر ولا يُفترض النجاح قبل
+    إعادة قراءة AAA.
+    """
+    def __init__(self, router, db, router_users, shared_password, autosave):
+        self.router = router
+        self.db = db
+        self.router_users = router_users or {}
+        self.shared_password = shared_password
+        self.autosave = bool(autosave)
+
+    def create(self, mac12, name, group, note):
+        if mac12 in self.router_users:
+            return ActionResult(False, "duplicate")
+        group = (group or "").strip()
+        if not group:
+            return ActionResult(False, "missing_group")
+        password = (self.shared_password or "").strip()
+        if not password or password == MAC_PW_PLACEHOLDER:
+            return ActionResult(False, "placeholder_password")
+        if password.lower() == mac12:
+            return ActionResult(False, "password_is_mac")
+
+        try:
+            # موثق على AR730: لا يقبل الحساب كلمة المرور قبل service-type.
+            self.router.send_many([
+                "system-view",
+                "aaa",
+                "local-user %s service-type 8021x" % mac12,
+                "local-user %s password cipher %s" % (mac12, password),
+                "local-user %s user-group %s" % (mac12, group),
+                "quit",
+                "quit",
+            ])
+            users = parse_local_users(self.router.read_aaa())
+            record = users.get(mac12)
+            if not record or "8021x" not in record["service_types"] \
+                    or record.get("group") != group:
+                return ActionResult(False, "not_confirmed", users=users)
+            if self.autosave:
+                self.router.save_config()
+            states = self.router.read_local_user_states()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+
+        self.db.upsert_device(mac12, name, group, note)
+        self.db.log("add_device", mac12, "%s / %s" % (name, group))
+        return ActionResult(True, "added", users=users, states=states)
+
+    def update_metadata(self, mac12, name, note):
+        """يحدّث الوصف المحلي فقط، حتى لو كان الحساب مُلغى على الراوتر."""
+        local = self.db.device(mac12) or {}
+        if name == local.get("name", "") and note == local.get("note", ""):
+            return ActionResult(True, "unchanged")
+        self.db.set_device_meta(mac12, name, note)
+        self.db.log("edit_device_meta", mac12, name)
+        return ActionResult(True, "updated")
+
+    def change_group(self, mac12, group):
+        """يغيّر مجموعة MAC ثم يفصل جلسته لتعيد المصادقة بالصلاحيات الجديدة."""
+        group = (group or "").strip()
+        if not group:
+            return ActionResult(False, "missing_group")
+        try:
+            # ``cut access-user`` موثق ومقبول في AAA فقط على AR730.
+            self.router.send_many([
+                "system-view",
+                "aaa",
+                "local-user %s user-group %s" % (mac12, group),
+                "cut access-user mac-address %s" % mac_dashed(mac12),
+                "quit",
+                "quit",
+            ])
+            users = parse_local_users(self.router.read_aaa())
+            record = users.get(mac12)
+            if not record or record.get("group") != group:
+                return ActionResult(False, "not_confirmed", users=users)
+            if self.autosave:
+                self.router.save_config()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+
+        device = self.db.device(mac12)
+        if device:
+            device["group"] = group
+            self.db.save()
+        self.db.log("change_group", mac12, group)
+        return ActionResult(True, "group_changed", users=users)
+
+    def revoke(self, mac12, reason):
+        """يلغي حساب MAC ويثبت اختفاءه قبل أرشفة السجل المحلي."""
+        try:
+            self.router.send_many([
+                "system-view",
+                "aaa",
+                "undo local-user %s" % mac12,
+                "cut access-user mac-address %s" % mac_dashed(mac12),
+                "quit",
+                "quit",
+            ])
+            if self.autosave:
+                self.router.save_config()
+            users = parse_local_users(self.router.read_aaa())
+            if mac12 in users:
+                return ActionResult(False, "not_confirmed", users=users)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+
+        self.db.revoke_device(mac12, reason)
+        self.db.log("revoke_device", mac12, reason)
+        return ActionResult(True, "revoked", users=users)
+
+
+class PortalAccountOperations(object):
+    """عمليات حسابات البوابة المشتركة بين Tkinter وQt."""
+    def __init__(self, db, router=None, router_users=None, autosave=False):
+        self.db = db
+        self.router = router
+        self.router_users = router_users or {}
+        self.autosave = bool(autosave)
+
+    def create(self, username, password, name, group, note):
+        username = (username or "").strip()
+        group = (group or "").strip()
+        if not re.match(r"^[A-Za-z0-9_.\-]{1,64}$", username):
+            return ActionResult(False, "bad_username")
+        if len(password or "") < 8:
+            return ActionResult(False, "short_password")
+        if password.lower() in (username.lower(), username.lower()[::-1]):
+            return ActionResult(False, "password_is_username")
+        if not group:
+            return ActionResult(False, "missing_group")
+        if username in self.router_users:
+            return ActionResult(False, "duplicate")
+        try:
+            self.router.send_many([
+                "system-view",
+                "aaa",
+                "local-user %s service-type web" % username,
+                "local-user %s password cipher %s" % (username, password),
+                "local-user %s user-group %s" % (username, group),
+                "quit",
+                "quit",
+            ])
+            users = parse_local_users(self.router.read_aaa())
+            record = users.get(username)
+            if not record or "web" not in record["service_types"] \
+                    or record.get("group") != group:
+                return ActionResult(False, "not_confirmed", users=users)
+            if self.autosave:
+                self.router.save_config()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+
+        self.db.upsert_portal(username, name, group, note)
+        self.db.log("add_portal", username, "%s / %s" % (name, group))
+        return ActionResult(True, "added", users=users)
+
+    def change_password(self, username, password):
+        """يغيّر كلمة المرور بنفس أمر AAA الموجود في واجهة Tkinter."""
+        username = (username or "").strip()
+        if len(password or "") < 8:
+            return ActionResult(False, "short_password")
+        if password.lower() == username.lower():
+            return ActionResult(False, "password_is_username")
+        try:
+            self.router.send_many([
+                "system-view", "aaa",
+                "local-user %s password cipher %s" % (username, password),
+                "quit", "quit",
+            ])
+            if self.autosave:
+                self.router.save_config()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        # لا تسجل كلمة المرور في LocalDB أو في سجل النشاط.
+        self.db.log("reset_password", username, "")
+        return ActionResult(True, "password_changed")
+
+    def change_group(self, username, group, portal_domain=""):
+        """يغيّر مجموعة حساب البوابة ويفصل جلسته بالتسلسل القديم نفسه."""
+        username = (username or "").strip()
+        group = (group or "").strip()
+        if not group:
+            return ActionResult(False, "missing_group")
+        try:
+            self.router.send_many([
+                "system-view", "aaa",
+                "local-user %s user-group %s" % (username, group),
+            ])
+            self._cut_session(username, portal_domain)
+            self.router.send_many(["quit", "quit"])
+            users = parse_local_users(self.router.read_aaa())
+            record = users.get(username)
+            if not record or record.get("group") != group:
+                return ActionResult(False, "not_confirmed", users=users)
+            if self.autosave:
+                self.router.save_config()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+
+        portal = self.db.portal(username)
+        if portal:
+            portal["group"] = group
+            self.db.save()
+        self.db.log("change_group", username, group)
+        return ActionResult(True, "group_changed", users=users)
+
+    def _cut_session(self, username, portal_domain):
+        """يفصل الحساب داخل AAA، مع إعادة المحاولة بالاسم المؤهل عند الحاجة."""
+        out = self.router.send("cut access-user username %s" % username)
+        if re.search(r"Error|Wrong|Invalid|not exist|does not exist", out, re.I):
+            domain = (portal_domain or "").strip()
+            if domain:
+                self.router.send("cut access-user username %s@%s" % (username, domain))
+
+    def revoke(self, username, reason, portal_domain=""):
+        """يحذف حساب البوابة ولا يؤرشفه محلياً قبل تأكيد اختفائه من AAA."""
+        username = (username or "").strip()
+        try:
+            self.router.send_many([
+                "system-view", "aaa",
+                "undo local-user %s" % username,
+            ])
+            self._cut_session(username, portal_domain)
+            self.router.send_many(["quit", "quit"])
+            users = parse_local_users(self.router.read_aaa())
+            if username in users:
+                return ActionResult(False, "not_confirmed", users=users)
+            if self.autosave:
+                self.router.save_config()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+
+        self.db.revoke_portal(username, reason)
+        self.db.log("delete_portal", username, reason)
+        return ActionResult(True, "revoked", users=users)
+
+    def update_metadata(self, username, name, note):
+        """يحدّث الوصف المحلي فقط، حتى لو لم يعد الحساب موجوداً على الراوتر."""
+        local = self.db.portal(username) or {}
+        if name == local.get("name", "") and note == local.get("note", ""):
+            return ActionResult(True, "unchanged")
+        self.db.set_portal_meta(username, name, note)
+        self.db.log("edit_portal_meta", username, name)
+        return ActionResult(True, "updated")
+
+
+class OnlineSessionOperations(object):
+    """عمليات جلسات access-user المشتركة؛ لا تعدّل حسابات AAA."""
+    def __init__(self, router):
+        self.router = router
+
+    def disconnect(self, user_id):
+        user_id = str(user_id or "").strip()
+        if not user_id:
+            return ActionResult(False, "missing_session")
+        try:
+            # تسلسل on_cut_user القديم نفسه؛ cut لا يقبل إلا من عرض AAA.
+            self.router.send_many([
+                "system-view", "aaa",
+                "cut access-user user-id %s" % user_id,
+                "quit", "quit",
+            ])
+            online = parse_online(self.router.read_online())
+            if any(row.get("id") == user_id for row in online):
+                return ActionResult(False, "not_confirmed", online=online)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        return ActionResult(True, "disconnected", online=online)
+
+
+# ----------------------------------------------------------------------------
 # الإعدادات
 # ----------------------------------------------------------------------------
 
@@ -3092,6 +3548,14 @@ def load_settings():
 def save_settings(s):
     with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
         json.dump(s, f, ensure_ascii=False, indent=2)
+
+
+def write_utf8_csv(path, headers, rows):
+    """يكتب CSV متوافقاً مع Excel ويحافظ على النص العربي."""
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        writer.writerows(rows)
 
 
 # ----------------------------------------------------------------------------
@@ -4864,12 +5328,12 @@ class App(tk.Tk):
             messagebox.showinfo(APP_NAME, self.T["vlan_scan_first"])
             return
         self._status(self.T["working"])
-        try:
-            scans = self.router.scan_pools(self.vlans)
-        except Exception as e:
-            self._status("خطأ / Error: %s" % e, ok=False)
+        result = VlanOverlapOperations(self.router, self.db).scan(self.vlans)
+        if not result.ok:
+            self._status("خطأ / Error: %s" % (result.error or result.code), ok=False)
             return
-        self.overlap = overlap_report(scans)
+        self.overlap = result.data["report"]
+        scans = result.data["scans"]
         self._refresh_vlan_table()
         dups, tight = self.overlap["dups"], self.overlap["tight"]
         if dups:
@@ -4879,7 +5343,6 @@ class App(tk.Tk):
         if tight:
             msg += "  " + self.T["vlan_scan_tight"] % " · ".join(
                 self.T["vlan_scan_tight_one"] % e for e in tight)
-        self.db.log("scan_overlap", "", "%d/%d" % (len(dups), len(scans)))
         self._status(msg, ok=not dups and not tight)
 
     def _vendor_text(self, row):
@@ -4931,11 +5394,11 @@ class App(tk.Tk):
         ])
         if not dlg.result:
             return
-        name = (dlg.result.get("name") or "").strip()
-        self.db.set_name(mac12, name, (dlg.result.get("note") or "").strip())
-        self.db.log("name_device", mac12, name)
+        result = NetworkDeviceNameOperations(self.db).update(
+            mac12, dlg.result.get("name"), dlg.result.get("note"))
         self._refresh_vlan_table()
-        self._status(self.T["vlan_named"] % {"mac": mac_pretty(mac12), "name": name or "—"})
+        self._status(self.T["vlan_named"] % {
+            "mac": mac_pretty(mac12), "name": self.db.name_of(mac12) or "—"})
 
     def on_cut_vlan_devices(self):
         """
@@ -4961,15 +5424,12 @@ class App(tk.Tk):
             return
 
         self._status(self.T["working"])
-        try:
-            res = self.router.cut_users(sel)
-        except Exception as e:
-            self._status("خطأ / Error: %s" % e, ok=False)
-            messagebox.showerror(APP_NAME, str(e))
+        result = VlanSessionOperations(self.router, self.db).disconnect(st, sel)
+        if result.code == "router_error":
+            self._status("خطأ / Error: %s" % result.error, ok=False)
+            messagebox.showerror(APP_NAME, result.error)
             return
-        bad = [m for m, out in res.items() if "Error" in (out or "")]
-        for mac12 in sel:
-            self.db.log("cut_user", mac12, st.get("iface", ""))
+        bad = result.data["bad"]
         self.on_pick_vlan()
         if bad:
             messagebox.showerror(APP_NAME, self.T["vlan_cut_failed"]
@@ -5001,53 +5461,40 @@ class App(tk.Tk):
 
     def _create_device(self, mac12, name, group, note):
         """ينشئ حساب الماك على الراوتر ويتحقق منه ويسجّله محلياً. يعيد True عند النجاح."""
-        if mac12 in self.router_users:
+        service = TrustedDeviceOperations(
+            self.router, self.db, self.router_users,
+            self.v_macpw.get().strip() or self.settings["mac_shared_password"],
+            self.v_autosave.get())
+        result = service.create(mac12, name, group, note)
+        if result.code == "duplicate":
             messagebox.showerror(APP_NAME, self.T["err_dup"])
             return False
-        group = group.strip()
-        if not group:
+        if result.code == "missing_group":
             messagebox.showwarning(APP_NAME, self.T["warn_no_group"])
             return False
-
-        pw = self.v_macpw.get().strip() or self.settings["mac_shared_password"]
-        if not pw or pw == MAC_PW_PLACEHOLDER:
+        if result.code == "placeholder_password":
             messagebox.showerror(APP_NAME, self.T["err_placeholder_pw"])
             return False
-        if pw.lower() == mac12:
+        if result.code == "password_is_mac":
             messagebox.showerror(
                 APP_NAME,
                 "كلمة مرور حسابات الماك لا يجوز أن تساوي عنوان الماك.\n"
                 "غيّرها من تبويب الإعدادات ومن mac-access-profile على الراوتر.")
             return False
-
         self._status(self.T["working"])
-        try:
-            # الترتيب إجباري: النوع ← كلمة المرور ← المجموعة
-            self.router.send_many([
-                "system-view",
-                "aaa",
-                "local-user %s service-type 8021x" % mac12,
-                "local-user %s password cipher %s" % (mac12, pw),
-                "local-user %s user-group %s" % (mac12, group),
-                "quit",
-                "quit",
-            ])
-            ok = self._verify_user(mac12, expect_group=group, expect_type="8021x")
-            if not ok:
-                self._status("لم يثبت الحساب على الراوتر / Not confirmed on router", ok=False)
-                messagebox.showerror(APP_NAME,
-                                     "نُفّذت الأوامر لكن الحساب لم يظهر في إعداد الراوتر.\n"
-                                     "راجع تبويب سجل الأوامر.")
-                return False
-            self._maybe_save()
-            self.router_states = self.router.read_local_user_states()
-        except Exception as e:
-            self._status("خطأ / Error: %s" % e, ok=False)
-            messagebox.showerror(APP_NAME, str(e))
+        if result.users is not None:
+            self.router_users = result.users
+        if result.code == "not_confirmed":
+            self._status("لم يثبت الحساب على الراوتر / Not confirmed on router", ok=False)
+            messagebox.showerror(APP_NAME,
+                                 "نُفّذت الأوامر لكن الحساب لم يظهر في إعداد الراوتر.\n"
+                                 "راجع تبويب سجل الأوامر.")
             return False
-
-        self.db.upsert_device(mac12, name, group, note)
-        self.db.log("add_device", mac12, "%s / %s" % (name, group))
+        if not result.ok:
+            self._status("خطأ / Error: %s" % result.error, ok=False)
+            messagebox.showerror(APP_NAME, result.error)
+            return False
+        self.router_states = result.states or {}
         self._refresh_device_table()
         if self.router_states.get(mac12) == "B":
             self._status(self.T["state_blocked"], ok=False)
@@ -5069,24 +5516,19 @@ class App(tk.Tk):
         reason = simpledialog.askstring(APP_NAME, self.T["ask_reason"], parent=self) or ""
 
         self._status(self.T["working"])
-        try:
-            self.router.send_many([
-                "system-view",
-                "aaa",
-                "undo local-user %s" % mac12,
-                "cut access-user mac-address %s" % mac_dashed(mac12),
-                "quit",
-                "quit",
-            ])
-            self._maybe_save()
-            self.router_users = parse_local_users(self.router.read_aaa())
-        except Exception as e:
-            self._status("خطأ / Error: %s" % e, ok=False)
-            messagebox.showerror(APP_NAME, str(e))
+        result = TrustedDeviceOperations(
+            self.router, self.db, self.router_users,
+            self.settings.get("mac_shared_password", ""), self.v_autosave.get()).revoke(mac12, reason)
+        if result.users is not None:
+            self.router_users = result.users
+        if not result.ok:
+            message = ("لم يثبت حذف الحساب من الراوتر / Device removal was not confirmed"
+                       if result.code == "not_confirmed" else "خطأ / Error: %s" % result.error)
+            self._status(message, ok=False)
+            if result.code == "router_error":
+                messagebox.showerror(APP_NAME, result.error)
             return
 
-        self.db.revoke_device(mac12, reason)
-        self.db.log("revoke_device", mac12, reason)
         self._refresh_device_table()
         self.on_refresh_online()
         self._status(self.T["ok_revoked"])
@@ -5122,12 +5564,50 @@ class App(tk.Tk):
         self._status(self.T["ok_edit"])
 
     def on_edit_device_meta(self):
-        self._edit_meta(self.tv_dev, self.db.device, self.db.set_device_meta,
-                        self._refresh_device_table, "edit_device_meta")
+        sel = self.tv_dev.selection()
+        if not sel:
+            messagebox.showinfo(APP_NAME, self.T["no_selection"])
+            return
+        mac12 = sel[0]
+        local = self.db.device(mac12) or {}
+        dlg = FieldDialog(self, self.T["edit_meta"], [
+            {"key": "name", "label": self.T["ask_name"], "default": local.get("name", "")},
+            {"key": "note", "label": self.T["ask_note"], "default": local.get("note", "")},
+        ])
+        if dlg.result is None:
+            return
+        result = TrustedDeviceOperations(None, self.db, {}, "", False).update_metadata(
+            mac12, dlg.result["name"], dlg.result["note"])
+        if result.code == "unchanged":
+            return
+        self._refresh_device_table()
+        if self.tv_dev.exists(mac12):
+            self.tv_dev.selection_set(mac12)
+            self.tv_dev.see(mac12)
+        self._status(self.T["ok_edit"])
 
     def on_edit_portal_meta(self):
-        self._edit_meta(self.tv_por, self.db.portal, self.db.set_portal_meta,
-                        self._refresh_portal_table, "edit_portal_meta")
+        sel = self.tv_por.selection()
+        if not sel:
+            messagebox.showinfo(APP_NAME, self.T["no_selection"])
+            return
+        user = sel[0]
+        local = self.db.portal(user) or {}
+        dlg = FieldDialog(self, self.T["edit_meta"], [
+            {"key": "name", "label": self.T["ask_name"], "default": local.get("name", "")},
+            {"key": "note", "label": self.T["ask_note"], "default": local.get("note", "")},
+        ])
+        if dlg.result is None:
+            return
+        result = PortalAccountOperations(self.db).update_metadata(
+            user, dlg.result["name"], dlg.result["note"])
+        if result.code == "unchanged":
+            return
+        self._refresh_portal_table()
+        if self.tv_por.exists(user):
+            self.tv_por.selection_set(user)
+            self.tv_por.see(user)
+        self._status(self.T["ok_edit"])
 
     def on_change_device_group(self):
         if not self._need_conn():
@@ -5149,27 +5629,16 @@ class App(tk.Tk):
             return
 
         self._status(self.T["working"])
-        try:
-            # تغيير الصلاحيات لا يسري على جلسة قائمة — نقطعها ليعيد الجهاز المصادقة
-            self.router.send_many([
-                "system-view",
-                "aaa",
-                "local-user %s user-group %s" % (mac12, group),
-                "cut access-user mac-address %s" % mac_dashed(mac12),
-                "quit",
-                "quit",
-            ])
-            self._verify_user(mac12, expect_group=group)
-            self._maybe_save()
-        except Exception as e:
-            self._status("خطأ / Error: %s" % e, ok=False)
+        result = TrustedDeviceOperations(
+            self.router, self.db, self.router_users,
+            self.settings.get("mac_shared_password", ""), self.v_autosave.get()).change_group(mac12, group)
+        if result.users is not None:
+            self.router_users = result.users
+        if not result.ok:
+            message = ("لم يثبت تغيير المجموعة على الراوتر / Group change was not confirmed"
+                       if result.code == "not_confirmed" else "خطأ / Error: %s" % result.error)
+            self._status(message, ok=False)
             return
-
-        d = self.db.device(mac12)
-        if d:
-            d["group"] = group
-            self.db.save()
-        self.db.log("change_group", mac12, group)
         self._refresh_device_table()
         self._status(self.T["ok_group"] + "  —  قد يحتاج الجهاز دقيقة لإعادة الاتصال")
 
@@ -5241,14 +5710,15 @@ class App(tk.Tk):
             return
         vals = self.tv_on.item(sel[0], "values")
         uid = vals[0]
-        try:
-            self.router.send_many(["system-view", "aaa",
-                                   "cut access-user user-id %s" % uid,
-                                   "quit", "quit"])
-        except Exception as e:
-            messagebox.showerror(APP_NAME, str(e))
+        result = OnlineSessionOperations(self.router).disconnect(uid)
+        if result.online is not None:
+            self.online_rows = result.online
+        if not result.ok:
+            message = ("لم يثبت فصل الجلسة على الراوتر / Session disconnect was not confirmed"
+                       if result.code == "not_confirmed" else result.error)
+            messagebox.showerror(APP_NAME, message or "تعذر فصل المستخدم.")
             return
-        self.on_refresh_online()
+        self._refresh_online_table()
         self._status("فُصل المستخدم / User disconnected")
 
     # -- عمليات حسابات البوابة -----------------------------------------------
@@ -5268,51 +5738,27 @@ class App(tk.Tk):
         if not dlg.result:
             return
 
-        user = dlg.result["user"].strip()
-        pw = dlg.result["pw"]
-        group = dlg.result["group"].strip()
-
-        if not re.match(r"^[A-Za-z0-9_.\-]{1,64}$", user):
-            messagebox.showerror(APP_NAME, self.T["err_bad_user"])
-            return
-        if len(pw) < 8:
-            messagebox.showerror(APP_NAME, self.T["err_short_pw"])
-            return
-        if pw.lower() == user.lower() or pw.lower() == user.lower()[::-1]:
-            messagebox.showerror(APP_NAME, self.T["err_pw_eq_user"])
-            return
-        if not group:
-            messagebox.showwarning(APP_NAME, self.T["warn_no_group"])
-            return
-        if user in self.router_users:
-            messagebox.showerror(APP_NAME, "هذا الحساب موجود مسبقاً / Account already exists")
-            return
-
         self._status(self.T["working"])
-        try:
-            self.router.send_many([
-                "system-view",
-                "aaa",
-                "local-user %s service-type web" % user,
-                "local-user %s password cipher %s" % (user, pw),
-                "local-user %s user-group %s" % (user, group),
-                "quit",
-                "quit",
-            ])
-            ok = self._verify_user(user, expect_group=group, expect_type="web")
-            if not ok:
-                messagebox.showerror(APP_NAME,
-                                     "نُفّذت الأوامر لكن الحساب لم يظهر في إعداد الراوتر.\n"
-                                     "راجع تبويب سجل الأوامر.")
-                return
-            self._maybe_save()
-        except Exception as e:
-            self._status("خطأ / Error: %s" % e, ok=False)
-            messagebox.showerror(APP_NAME, str(e))
+        result = PortalAccountOperations(
+            self.db, self.router, self.router_users, self.v_autosave.get()).create(
+                dlg.result["user"], dlg.result["pw"], dlg.result["name"],
+                dlg.result["group"], dlg.result["note"])
+        if result.users is not None:
+            self.router_users = result.users
+        if not result.ok:
+            messages = {
+                "bad_username": self.T["err_bad_user"],
+                "short_password": self.T["err_short_pw"],
+                "password_is_username": self.T["err_pw_eq_user"],
+                "missing_group": self.T["warn_no_group"],
+                "duplicate": "هذا الحساب موجود مسبقاً / Account already exists",
+                "not_confirmed": "نُفّذت الأوامر لكن الحساب لم يظهر في إعداد الراوتر.\nراجع تبويب سجل الأوامر.",
+                "router_error": result.error,
+            }
+            if result.code == "router_error":
+                self._status("خطأ / Error: %s" % result.error, ok=False)
+            messagebox.showerror(APP_NAME, messages.get(result.code, "تعذر إتمام العملية."))
             return
-
-        self.db.upsert_portal(user, dlg.result["name"], group, dlg.result["note"])
-        self.db.log("add_portal", user, "%s / %s" % (dlg.result["name"], group))
         self._refresh_portal_table()
         self._status(self.T["ok_added"])
 
@@ -5329,24 +5775,17 @@ class App(tk.Tk):
         ])
         if not dlg.result:
             return
-        pw = dlg.result["pw"]
-        if len(pw) < 8:
-            messagebox.showerror(APP_NAME, self.T["err_short_pw"])
+        result = PortalAccountOperations(
+            self.db, self.router, self.router_users, self.v_autosave.get()).change_password(
+                user, dlg.result["pw"])
+        if not result.ok:
+            messages = {
+                "short_password": self.T["err_short_pw"],
+                "password_is_username": self.T["err_pw_eq_user"],
+                "router_error": result.error,
+            }
+            messagebox.showerror(APP_NAME, messages.get(result.code, "تعذر تغيير كلمة المرور."))
             return
-        if pw.lower() == user.lower():
-            messagebox.showerror(APP_NAME, self.T["err_pw_eq_user"])
-            return
-        try:
-            self.router.send_many([
-                "system-view", "aaa",
-                "local-user %s password cipher %s" % (user, pw),
-                "quit", "quit",
-            ])
-            self._maybe_save()
-        except Exception as e:
-            messagebox.showerror(APP_NAME, str(e))
-            return
-        self.db.log("reset_password", user, "")
         self._status("تم تغيير كلمة المرور / Password changed")
 
     def on_change_portal_group(self):
@@ -5367,23 +5806,16 @@ class App(tk.Tk):
         group = dlg.result["group"].strip()
         if not group:
             return
-        try:
-            self.router.send_many([
-                "system-view", "aaa",
-                "local-user %s user-group %s" % (user, group),
-            ])
-            self._cut_portal_session(user)
-            self.router.send_many(["quit", "quit"])
-            self._verify_user(user, expect_group=group)
-            self._maybe_save()
-        except Exception as e:
-            messagebox.showerror(APP_NAME, str(e))
+        result = PortalAccountOperations(
+            self.db, self.router, self.router_users, self.v_autosave.get()).change_group(
+                user, group, self.settings.get("portal_domain", ""))
+        if result.users is not None:
+            self.router_users = result.users
+        if not result.ok:
+            message = ("لم يثبت تغيير المجموعة على الراوتر / Group change was not confirmed"
+                       if result.code == "not_confirmed" else result.error)
+            messagebox.showerror(APP_NAME, message or "تعذر تغيير المجموعة.")
             return
-        p = self.db.portal(user)
-        if p:
-            p["group"] = group
-            self.db.save()
-        self.db.log("change_group", user, group)
         self._refresh_portal_table()
         self._status(self.T["ok_group"])
 
@@ -5398,20 +5830,16 @@ class App(tk.Tk):
         if not messagebox.askyesno(APP_NAME, self.T["confirm_del"] + "\n\n" + user):
             return
         reason = simpledialog.askstring(APP_NAME, self.T["ask_reason"], parent=self) or ""
-        try:
-            self.router.send_many([
-                "system-view", "aaa",
-                "undo local-user %s" % user,
-            ])
-            self._cut_portal_session(user)
-            self.router.send_many(["quit", "quit"])
-            self._maybe_save()
-            self.router_users = parse_local_users(self.router.read_aaa())
-        except Exception as e:
-            messagebox.showerror(APP_NAME, str(e))
+        result = PortalAccountOperations(
+            self.db, self.router, self.router_users, self.v_autosave.get()).revoke(
+                user, reason, self.settings.get("portal_domain", ""))
+        if result.users is not None:
+            self.router_users = result.users
+        if not result.ok:
+            message = ("لم يثبت حذف الحساب على الراوتر / Account deletion was not confirmed"
+                       if result.code == "not_confirmed" else result.error)
+            messagebox.showerror(APP_NAME, message or "تعذر حذف الحساب.")
             return
-        self.db.revoke_portal(user, reason)
-        self.db.log("delete_portal", user, reason)
         self._refresh_portal_table()
         self.on_refresh_online()
         self._status(self.T["ok_revoked"])
@@ -6237,11 +6665,8 @@ class App(tk.Tk):
         if not path:
             return
         cols = tv["columns"]
-        with open(path, "w", newline="", encoding="utf-8-sig") as f:
-            w = csv.writer(f)
-            w.writerow([tv.heading(c)["text"] for c in cols])
-            for iid in tv.get_children():
-                w.writerow(tv.item(iid, "values"))
+        write_utf8_csv(path, [tv.heading(c)["text"] for c in cols],
+                       [tv.item(iid, "values") for iid in tv.get_children()])
         self._status("صُدّر إلى / Exported to: %s" % path)
 
     def _on_close(self):
@@ -7122,35 +7547,9 @@ class _DemoParamiko(object):
 
 
 def main():
-    global paramiko
-
-    if "--demo" in sys.argv or "-d" in sys.argv:
-        global SETTINGS_FILE, DB_FILE, LOG_FILE
-        paramiko = _DemoParamiko()
-        # ملفات منفصلة كي لا يختلط التدريب ببيانات الشبكة الحقيقية
-        SETTINGS_FILE = os.path.join(BASE_DIR, "demo_settings.json")
-        DB_FILE = os.path.join(BASE_DIR, "demo_devices.json")
-        LOG_FILE = os.path.join(BASE_DIR, "demo_session.log")
-        app = App()
-        app.demo_mode = True
-        app.title("%s  v%s   —   وضع التجربة (راوتر وهمي)  DEMO"
-                  % (app.T["title"], APP_VERSION))
-        app._set_state(DEMO_STATE_TEXT, "Demo.TLabel")
-        app._status("وضع التجربة: لا اتصال بأي راوتر حقيقي. اضغط (اتصال) للبدء — "
-                    "أي كلمة سر تُقبل.")
-        app.mainloop()
-        return
-
-    if paramiko is None:
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror(
-            APP_NAME,
-            "مكتبة paramiko غير مثبتة.\n\nنفّذ في موجّه الأوامر:\n    pip install paramiko\n\n"
-            "paramiko is not installed. Run:  pip install paramiko")
-        return
-    app = App()
-    app.mainloop()
+    """نقطة توافق للأوامر القديمة: تشغّل واجهة Qt الرسمية فقط."""
+    from ar730_qt import main as qt_main
+    qt_main()
 
 
 if __name__ == "__main__":
