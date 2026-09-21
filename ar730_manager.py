@@ -69,7 +69,7 @@ except ImportError:
 APP_NAME = "Huawei AR730 Router Easy Manager"
 # Release tags are vMAJOR.MINOR.PATCH. Keep this in sync with the tag used to
 # publish a release; the updater compares it with GitHub Releases on startup.
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 VENDOR = "AFZ Systems"
 DEFAULT_SSH_PORT = 22
 # مساحة اسم الراوتر داخل تسمية الحالة؛ ما زاد عنها يُختصر بدل أن يوسّع الشريط
@@ -2905,6 +2905,7 @@ class FirebaseSync(object):
 
     COLLECTION = "ar730_manager"
     DOCUMENT = "shared_state"
+    DB_KEYS = ("devices", "portal", "mgmt", "names", "history")
 
     def __init__(self, settings):
         self.settings = settings
@@ -3061,6 +3062,30 @@ class FirebaseSync(object):
         fields = doc.get("fields", {})
         state = self._value(fields.get("state", {})) if fields.get("state") else None
         return state if isinstance(state, dict) else None
+
+    @classmethod
+    def db_has_content(cls, db_data):
+        """True only when the shared local database contains user data."""
+        return isinstance(db_data, dict) and any(bool(db_data.get(key)) for key in cls.DB_KEYS)
+
+    def initial_sync_action(self, db_data):
+        """Read Firebase before a first write so an empty install cannot erase it.
+
+        A device that has not synced before is allowed to seed an empty cloud
+        document, or hydrate an empty local database from an existing document.
+        When both sides already contain data without a shared sync marker, a
+        caller must ask the user how to resolve that conflict instead of
+        silently replacing either copy.
+        """
+        state = self.pull()
+        remote_db = state.get("db") if isinstance(state, dict) else None
+        local_has_data = self.db_has_content(db_data)
+        remote_has_data = self.db_has_content(remote_db)
+        if remote_has_data and not local_has_data:
+            return "pull", state
+        if remote_has_data and local_has_data and not self.settings.get("firebase_last_sync"):
+            return "conflict", state
+        return "push", state
 
     def push(self, db_data):
         if not self.configured():
@@ -3956,6 +3981,31 @@ class App(tk.Tk):
     def _sync_firebase(self, quiet=False):
         if not self.firebase.configured():
             return False
+        try:
+            action, state = self.firebase.initial_sync_action(self.db.data)
+            if action == "pull":
+                self._apply_firebase_state(state)
+                if not quiet:
+                    self._status(self.T["firebase_ok"])
+                return True
+            if action == "conflict":
+                self.settings["firebase_pending_sync"] = True
+                save_settings(self.settings)
+                if not quiet:
+                    self._status("Firebase يحتوي بيانات محلية وسحابية غير متطابقة؛ لم يُستبدل أي منهما.", ok=False)
+                return False
+            self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
+            self.settings["firebase_pending_sync"] = False
+            save_settings(self.settings)
+            if not quiet:
+                self._status(self.T["firebase_ok"])
+            return True
+        except Exception:
+            self.settings["firebase_pending_sync"] = True
+            save_settings(self.settings)
+            if not quiet:
+                self._status(self.T["firebase_offline"], ok=False)
+            return False
 
     def _apply_firebase_state(self, state):
         """يكتب الحالة المشتركة محلياً دون إعادة رفعها فوراً."""
@@ -3976,28 +4026,7 @@ class App(tk.Tk):
 
     def _firebase_first_sync(self):
         """جهاز جديد يجلب النسخة السحابية قبل أن يفكر في رفع ملفه الفارغ."""
-        try:
-            state = self.firebase.pull()
-            if state:
-                self._apply_firebase_state(state)
-                self._status(self.T["firebase_ok"])
-                return True
-        except Exception:
-            pass
         return self._sync_firebase(quiet=False)
-        try:
-            self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
-            self.settings["firebase_pending_sync"] = False
-            save_settings(self.settings)
-            if not quiet:
-                self._status(self.T["firebase_ok"])
-            return True
-        except Exception:
-            self.settings["firebase_pending_sync"] = True
-            save_settings(self.settings)
-            if not quiet:
-                self._status(self.T["firebase_offline"], ok=False)
-            return False
 
     def _firebase_poll(self):
         try:

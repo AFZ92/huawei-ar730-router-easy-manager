@@ -855,6 +855,15 @@ class ReadController:
         self.firebase = legacy.FirebaseSync(self.settings)
         if not self.firebase.configured(): return legacy.ActionResult(False, "bad_config")
         try:
+            action, state = self.firebase.initial_sync_action(self.db.data)
+            if action == "pull":
+                self._apply_firebase_state(state)
+                return legacy.ActionResult(True, "pulled", data=state)
+            if action == "conflict":
+                return legacy.ActionResult(
+                    False, "sync_conflict",
+                    error=("Firebase and this device both contain data that have never "
+                           "been synchronized. Neither copy was changed."))
             self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
             self.settings["firebase_pending_sync"] = False
             legacy.save_settings(self.settings)
@@ -863,6 +872,22 @@ class ReadController:
             self.settings["firebase_pending_sync"] = True
             legacy.save_settings(self.settings)
             return legacy.ActionResult(False, "offline", error=str(exc))
+
+    def _apply_firebase_state(self, state):
+        """Hydrate an empty installation without triggering an upload callback."""
+        remote_settings = state.get("settings", {})
+        if isinstance(remote_settings, dict):
+            self.settings.update(remote_settings)
+        remote_db = state.get("db", {})
+        if isinstance(remote_db, dict):
+            self.db.data = {
+                key: remote_db.get(key, {} if key != "history" else [])
+                for key in legacy.FirebaseSync.DB_KEYS
+            }
+            self.db.save()
+        self.settings["firebase_last_sync"] = state.get("saved_at", "")
+        self.settings["firebase_pending_sync"] = False
+        legacy.save_settings(self.settings)
 
     def import_firebase_service_account(self, source_path):
         """يستورد ملف service-account محلياً من دون وضع مفتاحه في الإعدادات."""
@@ -2425,6 +2450,8 @@ class MainWindow(QMainWindow):
     def _copy_log(self): QApplication.clipboard().setText(self._masked_log())
     def _show_action(self, title):
         def show(result):
+            if result.ok and result.code == "pulled":
+                self._render()
             box = QMessageBox.Information if result.ok else QMessageBox.Warning
             QMessageBox.information(self, title, "اكتملت العملية." if result.ok else (result.error or "تعذرت العملية: " + result.code)) if box == QMessageBox.Information else QMessageBox.warning(self, title, result.error or "تعذرت العملية: " + result.code)
         return show

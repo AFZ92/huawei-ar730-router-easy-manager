@@ -394,6 +394,47 @@ window.stack.setCurrentIndex(8)
 app.processEvents()
 check("زر استيراد اعتماد Firebase ظاهر", hasattr(window, "import_firebase_credentials")
       and window.import_firebase_credentials.isVisible())
+
+print("١٢ — حماية أول مزامنة Firebase")
+remote_state = {
+    "saved_at": "2026-09-21T14:00:00.000000Z",
+    "settings": {"default_mac_group": "grp_remote"},
+    "db": {"devices": {"001122334455": {"name": "Remote printer"}},
+           "portal": {}, "mgmt": {}, "names": {}, "history": []},
+}
+empty_db = {"devices": {}, "portal": {}, "mgmt": {}, "names": {}, "history": []}
+resolver = qt.legacy.FirebaseSync({"firebase_last_sync": ""})
+resolver.pull = lambda: copy.deepcopy(remote_state)
+check("أول مزامنة تستورد السحابة إلى محلي فارغ",
+      resolver.initial_sync_action(empty_db)[0] == "pull")
+check("بيانات محلية وسحابية غير متزامنة لا تُستبدل",
+      resolver.initial_sync_action(remote_state["db"])[0] == "conflict")
+
+class FakeFirebase:
+    def __init__(self, state):
+        self.state, self.pushes = state, []
+    def configured(self): return True
+    def initial_sync_action(self, db_data): return "pull", copy.deepcopy(self.state)
+    def push(self, db_data):
+        self.pushes.append(copy.deepcopy(db_data))
+        return "unexpected"
+
+fake_firebase = FakeFirebase(remote_state)
+original_firebase = qt.legacy.FirebaseSync
+class FirebaseFactory:
+    DB_KEYS = original_firebase.DB_KEYS
+    def __new__(cls, settings): return fake_firebase
+try:
+    qt.legacy.FirebaseSync = FirebaseFactory
+    fresh_controller = qt.ReadController(demo=True)
+    fresh_controller.db.data = copy.deepcopy(empty_db)
+    hydrated = fresh_controller.firebase_sync()
+    check("مزامنة Qt الفارغة تجلب بيانات Firebase", hydrated.ok and hydrated.code == "pulled"
+          and fresh_controller.db.data["devices"] == remote_state["db"]["devices"])
+    check("المزامنة الأولى لا ترفع ملفاً فارغاً", not fake_firebase.pushes)
+    fresh_controller.close()
+finally:
+    qt.legacy.FirebaseSync = original_firebase
 window.close()
 controller.close()
 shutil.rmtree(WORK, ignore_errors=True)
