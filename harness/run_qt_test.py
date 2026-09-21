@@ -44,6 +44,7 @@ app = QApplication.instance() or QApplication([])
 
 print("١ — واجهة Qt الرسمية")
 controller = qt.ReadController(demo=True)
+controller.settings["storage_mode"] = "local"
 controller.connect("demo", 22, "admin", "anything")
 before = snapshot(qt.legacy._DemoParamiko.device)
 controller.refresh()
@@ -383,7 +384,7 @@ check("قفل الواجهة يعيد الأزرار بعد انتهاء الع�
       and window.connect_button.isEnabled())
 saved = controller.save_preferences({"auto_save_config": False})
 check("حفظ إعدادات Qt محلي ناجح", saved.ok and saved.code == "saved")
-check("Firebase يرفض الإعداد الناقص بوضوح", controller.firebase_sync().code == "bad_config")
+check("وضع التخزين المحلي يعطل Firebase", controller.firebase_sync().code == "storage_mode_local")
 window._render()
 for index, attribute in ((5, "refresh_management"), (6, "check_wan"), (7, "refresh_groups"),
                          (8, "save_settings"), (9, "copy_log")):
@@ -394,6 +395,9 @@ window.stack.setCurrentIndex(8)
 app.processEvents()
 check("زر استيراد اعتماد Firebase ظاهر", hasattr(window, "import_firebase_credentials")
       and window.import_firebase_credentials.isVisible())
+check("وضعي التخزين ظاهران", hasattr(window, "storage_mode")
+      and window.storage_mode.count() == 2 and not window.firebase_download.isEnabled()
+      and not window.firebase_upload.isEnabled())
 
 print("١٢ — حماية أول مزامنة Firebase")
 remote_state = {
@@ -414,7 +418,7 @@ class FakeFirebase:
     def __init__(self, state):
         self.state, self.pushes = state, []
     def configured(self): return True
-    def initial_sync_action(self, db_data): return "pull", copy.deepcopy(self.state)
+    def pull(self): return copy.deepcopy(self.state)
     def push(self, db_data):
         self.pushes.append(copy.deepcopy(db_data))
         return "unexpected"
@@ -427,11 +431,17 @@ class FirebaseFactory:
 try:
     qt.legacy.FirebaseSync = FirebaseFactory
     fresh_controller = qt.ReadController(demo=True)
+    fresh_controller.db = qt.legacy.LocalDB(path=os.path.join(WORK, "firebase_test_devices.json"))
     fresh_controller.db.data = copy.deepcopy(empty_db)
-    hydrated = fresh_controller.firebase_sync()
-    check("مزامنة Qt الفارغة تجلب بيانات Firebase", hydrated.ok and hydrated.code == "pulled"
-          and fresh_controller.db.data["devices"] == remote_state["db"]["devices"])
-    check("المزامنة الأولى لا ترفع ملفاً فارغاً", not fake_firebase.pushes)
+    fresh_controller.settings["storage_mode"] = "firebase"
+    hydrated = fresh_controller.firebase_download()
+    check("Firebase الأساسي يجلب بياناته إلى المحلّي", hydrated.ok and hydrated.code == "downloaded"
+          and fresh_controller.db.data["devices"] == remote_state["db"]["devices"]
+          and os.path.exists(hydrated.data["backup"]))
+    check("تنزيل Firebase لا يرفع ملفاً فارغاً", not fake_firebase.pushes)
+    uploaded = fresh_controller.firebase_upload()
+    check("رفع Firebase لا يحدث إلا بإجراء صريح", uploaded.ok and uploaded.code == "uploaded"
+          and bool(fake_firebase.pushes))
     fresh_controller.close()
 finally:
     qt.legacy.FirebaseSync = original_firebase

@@ -69,7 +69,7 @@ except ImportError:
 APP_NAME = "Huawei AR730 Router Easy Manager"
 # Release tags are vMAJOR.MINOR.PATCH. Keep this in sync with the tag used to
 # publish a release; the updater compares it with GitHub Releases on startup.
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 VENDOR = "AFZ Systems"
 DEFAULT_SSH_PORT = 22
 # مساحة اسم الراوتر داخل تسمية الحالة؛ ما زاد عنها يُختصر بدل أن يوسّع الشريط
@@ -159,6 +159,8 @@ DEFAULT_SETTINGS = {
     "firebase_service_account_file": "",
     "firebase_last_sync": "",
     "firebase_pending_sync": False,
+    # اختيار صريح: الوضع المحلي لا يقرأ أو يكتب Firebase أبداً.
+    "storage_mode": "local",
 }
 
 BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -2897,7 +2899,7 @@ def mgmt_entries(st):
 FIREBASE_LOCAL_KEYS = set(("firebase_api_key", "firebase_project_id",
                            "firebase_email", "firebase_password",
                            "firebase_service_account_file", "firebase_last_sync",
-                           "firebase_pending_sync"))
+                           "firebase_pending_sync", "storage_mode"))
 
 
 class FirebaseSync(object):
@@ -3873,7 +3875,7 @@ class App(tk.Tk):
         self.settings = load_settings()
         self.firebase = FirebaseSync(self.settings)
         self._firebase_state = None
-        if self.firebase.configured():
+        if self.settings.get("storage_mode") == "firebase" and self.firebase.configured():
             try:
                 self._firebase_state = self.firebase.pull()
                 if self._firebase_state:
@@ -3979,7 +3981,7 @@ class App(tk.Tk):
         self._sync_firebase(quiet=True)
 
     def _sync_firebase(self, quiet=False):
-        if not self.firebase.configured():
+        if self.settings.get("storage_mode") != "firebase" or not self.firebase.configured():
             return False
         try:
             action, state = self.firebase.initial_sync_action(self.db.data)
@@ -4030,7 +4032,7 @@ class App(tk.Tk):
 
     def _firebase_poll(self):
         try:
-            if self.firebase.configured():
+            if self.settings.get("storage_mode") == "firebase" and self.firebase.configured():
                 # إن وُجد تعديل لم يصل بعد، تكون الأولوية لنسختنا المحلية.
                 if self.settings.get("firebase_pending_sync"):
                     self._sync_firebase(quiet=True)

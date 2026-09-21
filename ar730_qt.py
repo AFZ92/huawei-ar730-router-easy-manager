@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """تطبيق سطح المكتب الرسمي لإدارة الوصول على Huawei AR730."""
 import argparse
+import datetime
 import json
 import os
 import shutil
@@ -225,6 +226,21 @@ _TEXT_BY_ARABIC.update({
     "لم يتم استيراد ملف Firebase بعد.": "No Firebase credential file has been imported.",
     "تم إعداد Firebase لمشروع: %s": "Firebase is configured for project: %s",
     "تم استيراد بيانات اعتماد Firebase. يمكنك المزامنة الآن.": "Firebase credentials imported. You can sync now.",
+    "وضع التخزين": "Storage mode",
+    "محلي فقط": "Local only",
+    "Firebase أساسي": "Firebase primary",
+    "محلي فقط: لا اتصال بـ Firebase.": "Local only: Firebase is not used.",
+    "Firebase أساسي: البيانات السحابية هي المصدر الافتراضي، وتبقى نسخة محلية للعمل دون اتصال.": "Firebase primary: cloud data is the default source, with a local offline cache.",
+    "تنزيل البيانات من Firebase": "Download data from Firebase",
+    "رفع البيانات المحلية إلى Firebase": "Upload local data to Firebase",
+    "اختيار بيانات Firebase أولاً": "Choose the initial Firebase data source",
+    "استخدم بيانات Firebase": "Use Firebase data",
+    "ارفع البيانات المحلية": "Upload local data",
+    "إلغاء": "Cancel",
+    "سيُنشأ ملف نسخة احتياطية محلية ثم ستستبدل بيانات Firebase بيانات هذا الجهاز. هل تريد المتابعة؟": "A local backup will be created, then Firebase data will replace this device's data. Continue?",
+    "سيستبدل هذا الإجراء بيانات Firebase بالبيانات المحلية الحالية. هل تريد المتابعة؟": "This will replace Firebase data with this device's current local data. Continue?",
+    "تم تنزيل بيانات Firebase مع نسخة احتياطية محلية.": "Firebase data was downloaded and a local backup was created.",
+    "تم رفع البيانات المحلية إلى Firebase.": "Local data was uploaded to Firebase.",
     "نسخ": "Copy",
 })
 
@@ -829,9 +845,18 @@ class ReadController:
         return "\n".join("%s (%s) — %s" % (line.get("desc") or line["gw"], line["gw"], line.get("verdict", "—")) for line in self.wan_lines)
 
     def save_preferences(self, values):
+        previous_mode = self.settings.get("storage_mode", "local")
         self.settings.update(values)
+        if self.settings.get("storage_mode") not in {"local", "firebase"}:
+            self.settings["storage_mode"] = "local"
         legacy.save_settings(self.settings)
         self.firebase = legacy.FirebaseSync(self.settings)
+        if self.settings["storage_mode"] == "firebase" and not self.firebase.configured():
+            self.settings["storage_mode"] = previous_mode
+            legacy.save_settings(self.settings)
+            return legacy.ActionResult(False, "bad_config")
+        if previous_mode != "firebase" and self.settings["storage_mode"] == "firebase":
+            return legacy.ActionResult(True, "firebase_setup_required")
         return legacy.ActionResult(True, "saved")
 
     def rotate_mac_password(self, profile, password):
@@ -851,37 +876,73 @@ class ReadController:
         self.db.log("rotate_mac_password", profile, "%d accounts" % len(macs))
         return legacy.ActionResult(not result["failed"], "rotated" if not result["failed"] else "partial", data=result)
 
-    def firebase_sync(self):
+    def _firebase_ready(self):
         self.firebase = legacy.FirebaseSync(self.settings)
-        if not self.firebase.configured(): return legacy.ActionResult(False, "bad_config")
+        if self.settings.get("storage_mode") != "firebase":
+            return legacy.ActionResult(False, "storage_mode_local",
+                                       error="Firebase is disabled while Local-only storage is selected.")
+        if not self.firebase.configured():
+            return legacy.ActionResult(False, "bad_config")
+        return None
+
+    def _backup_local_database(self):
+        """Keep a recoverable copy before cloud data replaces the local cache."""
+        backup_dir = os.path.join(os.path.dirname(self.db.path), "backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        destination = os.path.join(backup_dir, "ar730_devices_before_firebase_%s.json" % stamp)
+        with open(destination, "w", encoding="utf-8") as handle:
+            json.dump(self.db.data, handle, ensure_ascii=False, indent=2)
+        return destination
+
+    def firebase_download(self):
+        problem = self._firebase_ready()
+        if problem:
+            return problem
         try:
-            action, state = self.firebase.initial_sync_action(self.db.data)
-            if action == "pull":
-                self._apply_firebase_state(state)
-                return legacy.ActionResult(True, "pulled", data=state)
-            if action == "conflict":
-                return legacy.ActionResult(
-                    False, "sync_conflict",
-                    error=("Firebase and this device both contain data that have never "
-                           "been synchronized. Neither copy was changed."))
-            self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
-            self.settings["firebase_pending_sync"] = False
-            legacy.save_settings(self.settings)
-            return legacy.ActionResult(True, "synced")
+            state = self.firebase.pull()
+            if not state or not isinstance(state.get("db"), dict):
+                return legacy.ActionResult(False, "remote_empty",
+                                           error="Firebase does not contain shared application data yet.")
+            backup = self._backup_local_database()
+            self._apply_firebase_state(state)
+            return legacy.ActionResult(True, "downloaded", data={"backup": backup})
         except Exception as exc:
             self.settings["firebase_pending_sync"] = True
             legacy.save_settings(self.settings)
             return legacy.ActionResult(False, "offline", error=str(exc))
 
+    def firebase_upload(self):
+        problem = self._firebase_ready()
+        if problem:
+            return problem
+        try:
+            self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
+            self.settings["firebase_pending_sync"] = False
+            legacy.save_settings(self.settings)
+            return legacy.ActionResult(True, "uploaded")
+        except Exception as exc:
+            self.settings["firebase_pending_sync"] = True
+            legacy.save_settings(self.settings)
+            return legacy.ActionResult(False, "offline", error=str(exc))
+
+    def firebase_sync(self):
+        """Compatibility entry point: cloud mode always reads by default."""
+        return self.firebase_download()
+
     def _apply_firebase_state(self, state):
         """Hydrate an empty installation without triggering an upload callback."""
         remote_settings = state.get("settings", {})
         if isinstance(remote_settings, dict):
-            self.settings.update(remote_settings)
+            self.settings.update({key: value for key, value in remote_settings.items()
+                                  if key not in legacy.FIREBASE_LOCAL_KEYS})
         remote_db = state.get("db", {})
         if isinstance(remote_db, dict):
             self.db.data = {
                 key: remote_db.get(key, {} if key != "history" else [])
+                if isinstance(remote_db.get(key, {} if key != "history" else []),
+                              list if key == "history" else dict)
+                else ( [] if key == "history" else {} )
                 for key in legacy.FirebaseSync.DB_KEYS
             }
             self.db.save()
@@ -1722,6 +1783,13 @@ class MainWindow(QMainWindow):
             self.setting_mac_password = QLineEdit(); self.setting_mac_password.setEchoMode(QLineEdit.Password)
             self.setting_autosave = FullRowCheckBox("حفظ إعداد الراوتر تلقائياً")
             self.setting_autosave.setChecked(bool(self.c.settings.get("auto_save_config", True)))
+            self.storage_mode = QComboBox()
+            self.storage_mode.addItem(tr("محلي فقط"), "local")
+            self.storage_mode.addItem(tr("Firebase أساسي"), "firebase")
+            self.storage_mode.setCurrentIndex(1 if self.c.settings.get("storage_mode") == "firebase" else 0)
+            self.storage_mode_hint = QLabel(self._storage_mode_hint(), objectName="subtle")
+            self.storage_mode_hint.setWordWrap(True)
+            self.storage_mode.currentIndexChanged.connect(self._update_storage_mode_hint)
             self.setting_firebase_key, self.setting_firebase_project = QLineEdit(), QLineEdit()
             self.setting_firebase_email, self.setting_firebase_password = QLineEdit(), QLineEdit()
             self.setting_firebase_key.setText(self.c.settings.get("firebase_api_key", "")); self.setting_firebase_project.setText(self.c.settings.get("firebase_project_id", ""))
@@ -1735,6 +1803,8 @@ class MainWindow(QMainWindow):
             self.rotate_mac_password.clicked.connect(self._rotate_mac_password)
             password_layout.addWidget(self.rotate_mac_password)
             form.addRow("كلمة MAC المشتركة", password_row); form.addRow(self.setting_autosave)
+            form.addRow("وضع التخزين", self.storage_mode)
+            form.addRow(self.storage_mode_hint)
             form.addRow("Firebase API Key", self.setting_firebase_key); form.addRow("Firebase Project ID", self.setting_firebase_project)
             form.addRow("Firebase e-mail", self.setting_firebase_email); form.addRow("Firebase password", self.setting_firebase_password)
             credential_row = QWidget()
@@ -1750,8 +1820,13 @@ class MainWindow(QMainWindow):
             form.addRow("ملف Firebase service account", credential_row)
             layout.addLayout(form)
             actions = QHBoxLayout(); self.save_settings = QPushButton("حفظ الإعدادات", objectName="primary"); self.save_settings.clicked.connect(self._save_settings)
-            self.firebase_sync = QPushButton("مزامنة Firebase الآن"); self.firebase_sync.clicked.connect(self._firebase_sync)
-            for button in (self.save_settings, self.firebase_sync): actions.addWidget(button)
+            self.firebase_download = QPushButton("تنزيل البيانات من Firebase")
+            self.firebase_download.clicked.connect(self._firebase_download)
+            self.firebase_upload = QPushButton("رفع البيانات المحلية إلى Firebase")
+            self.firebase_upload.clicked.connect(self._firebase_upload)
+            self.firebase_sync = self.firebase_download  # compatibility for existing UI callers
+            self._update_storage_controls()
+            for button in (self.save_settings, self.firebase_download, self.firebase_upload): actions.addWidget(button)
             actions.addStretch(); layout.addLayout(actions); layout.addStretch()
         elif page_id == "log":
             self.log_text = QTextEdit(objectName="commandLog"); self.log_text.setReadOnly(True); self.log_text.setLayoutDirection(Qt.LeftToRight)
@@ -2410,8 +2485,52 @@ class MainWindow(QMainWindow):
         else: self.wan_timer.stop()
 
     def _save_settings(self):
-        values = {"mac_shared_password": self.setting_mac_password.text() or self.c.settings.get("mac_shared_password", ""), "auto_save_config": self.setting_autosave.isChecked(), "firebase_api_key": self.setting_firebase_key.text().strip(), "firebase_project_id": self.setting_firebase_project.text().strip(), "firebase_email": self.setting_firebase_email.text().strip(), "firebase_password": self.setting_firebase_password.text() or self.c.settings.get("firebase_password", "")}
-        self._run(lambda: self.c.save_preferences(values), self._show_action("الإعدادات"))
+        values = {"mac_shared_password": self.setting_mac_password.text() or self.c.settings.get("mac_shared_password", ""), "auto_save_config": self.setting_autosave.isChecked(), "firebase_api_key": self.setting_firebase_key.text().strip(), "firebase_project_id": self.setting_firebase_project.text().strip(), "firebase_email": self.setting_firebase_email.text().strip(), "firebase_password": self.setting_firebase_password.text() or self.c.settings.get("firebase_password", ""), "storage_mode": self.storage_mode.currentData()}
+        self._run(lambda: self.c.save_preferences(values), self._show_storage_settings)
+
+    def _storage_mode_hint(self):
+        cloud = hasattr(self, "storage_mode") and self.storage_mode.currentData() == "firebase"
+        return ("Firebase أساسي: البيانات السحابية هي المصدر الافتراضي، وتبقى نسخة محلية للعمل دون اتصال."
+                if cloud else "محلي فقط: لا اتصال بـ Firebase.")
+
+    def _update_storage_mode_hint(self):
+        if hasattr(self, "storage_mode_hint"):
+            self.storage_mode_hint.setText(self._storage_mode_hint())
+
+    def _update_storage_controls(self):
+        cloud = self.c.settings.get("storage_mode") == "firebase"
+        for button in (getattr(self, "firebase_download", None), getattr(self, "firebase_upload", None)):
+            if button is not None:
+                button.setEnabled(cloud)
+
+    def _show_storage_settings(self, result):
+        if not result.ok:
+            QMessageBox.warning(self, "الإعدادات", result.error or "تعذرت العملية: " + result.code)
+            return
+        self._update_storage_controls()
+        if result.code == "firebase_setup_required":
+            self._choose_initial_firebase_source()
+            return
+        QMessageBox.information(self, "الإعدادات", "اكتملت العملية.")
+
+    def _choose_initial_firebase_source(self):
+        dialog = QMessageBox(self)
+        dialog.setIcon(QMessageBox.Question)
+        dialog.setWindowTitle("اختيار بيانات Firebase أولاً")
+        dialog.setText("اختر المصدر الأول للبيانات. لن يُستبدل أي طرف قبل تأكيدك.")
+        download = dialog.addButton(tr("استخدم بيانات Firebase"), QMessageBox.AcceptRole)
+        upload = dialog.addButton(tr("ارفع البيانات المحلية"), QMessageBox.DestructiveRole)
+        cancel = dialog.addButton(tr("إلغاء"), QMessageBox.RejectRole)
+        dialog.exec()
+        if dialog.clickedButton() is download:
+            self._firebase_download()
+        elif dialog.clickedButton() is upload:
+            self._firebase_upload()
+        elif dialog.clickedButton() is cancel:
+            self.c.save_preferences({"storage_mode": "local"})
+            self.storage_mode.setCurrentIndex(0)
+            self._update_storage_mode_hint()
+            self._update_storage_controls()
 
     def _firebase_credential_status(self):
         project = self.c.settings.get("firebase_project_id", "")
@@ -2435,7 +2554,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "firebase_credential_status"):
             self.firebase_credential_status.setText(self._firebase_credential_status())
         QMessageBox.information(self, "استيراد بيانات اعتماد Firebase",
-                                "تم استيراد بيانات اعتماد Firebase. يمكنك المزامنة الآن.")
+                                "تم استيراد بيانات اعتماد Firebase. يمكنك الآن اختيار وضع التخزين.")
 
     def _rotate_mac_password(self):
         if not self.c.router.connected: QMessageBox.information(self, "تغيير كلمة السر", "اتصل بالراوتر أولاً."); return
@@ -2446,7 +2565,33 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "تأكيد تغيير كلمة السر", "ستتغير كلمة السر في الملف وكل حسابات MAC، وتُفك الحسابات المحظورة.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
         self._run(lambda: self.c.rotate_mac_password(profile, password), self._show_action("تغيير كلمة السر"))
 
-    def _firebase_sync(self): self._run(self.c.firebase_sync, self._show_action("Firebase"))
+    def _firebase_download(self):
+        if QMessageBox.question(self, "تنزيل البيانات من Firebase",
+                                "سيُنشأ ملف نسخة احتياطية محلية ثم ستستبدل بيانات Firebase بيانات هذا الجهاز. هل تريد المتابعة؟",
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(self.c.firebase_download, self._show_firebase_transfer)
+
+    def _firebase_upload(self):
+        if QMessageBox.question(self, "رفع البيانات المحلية إلى Firebase",
+                                "سيستبدل هذا الإجراء بيانات Firebase بالبيانات المحلية الحالية. هل تريد المتابعة؟",
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(self.c.firebase_upload, self._show_firebase_transfer)
+
+    def _firebase_sync(self):
+        self._firebase_download()
+
+    def _show_firebase_transfer(self, result):
+        if not result.ok:
+            QMessageBox.warning(self, "Firebase", result.error or "تعذرت العملية: " + result.code)
+            return
+        if result.code == "downloaded":
+            self._render()
+            QMessageBox.information(self, "Firebase", "تم تنزيل بيانات Firebase مع نسخة احتياطية محلية.")
+        else:
+            QMessageBox.information(self, "Firebase", "تم رفع البيانات المحلية إلى Firebase.")
+
     def _copy_log(self): QApplication.clipboard().setText(self._masked_log())
     def _show_action(self, title):
         def show(result):
