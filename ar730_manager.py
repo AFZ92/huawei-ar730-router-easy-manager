@@ -34,11 +34,14 @@ import datetime
 import csv
 import zlib
 import copy
+import shutil
 import base64
 import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+
+from release_update import check_for_update
 
 try:
     from cryptography.hazmat.primitives import hashes, serialization
@@ -64,7 +67,9 @@ except ImportError:
 # ----------------------------------------------------------------------------
 
 APP_NAME = "Huawei AR730 Router Easy Manager"
-APP_VERSION = "1.0"
+# Release tags are vMAJOR.MINOR.PATCH. Keep this in sync with the tag used to
+# publish a release; the updater compares it with GitHub Releases on startup.
+APP_VERSION = "1.0.0"
 VENDOR = "AFZ Systems"
 DEFAULT_SSH_PORT = 22
 # مساحة اسم الراوتر داخل تسمية الحالة؛ ما زاد عنها يُختصر بدل أن يوسّع الشريط
@@ -157,12 +162,69 @@ DEFAULT_SETTINGS = {
 }
 
 BASE_DIR = os.path.dirname(os.path.abspath(sys.argv[0]))
-SETTINGS_FILE = os.path.join(BASE_DIR, "ar730_settings.json")
-DB_FILE = os.path.join(BASE_DIR, "ar730_devices.json")
-LOG_FILE = os.path.join(BASE_DIR, "ar730_session.log")
+RESOURCE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+
+
+def _user_data_dir():
+    """Use a writable per-user location for packaged applications.
+
+    Source checkouts retain adjacent data files for the existing test and
+    developer workflow. Installed apps must not write into their replaceable
+    installation folder.
+    """
+    if not getattr(sys, "frozen", False):
+        return BASE_DIR
+    if sys.platform == "win32":
+        return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
+                            "AFZ Systems", "AR730 Manager")
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/AR730 Manager")
+    return os.path.expanduser("~/.local/share/ar730-manager")
+
+
+DATA_DIR = _user_data_dir()
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except OSError:
+    DATA_DIR = BASE_DIR
+
+
+def _migrate_legacy_data():
+    """Copy old portable-release data once, leaving a recoverable original."""
+    if DATA_DIR == BASE_DIR:
+        return
+    for filename in ("ar730_settings.json", "ar730_devices.json", "ar730_session.log",
+                     "firebase_service_account.json"):
+        old_path, new_path = os.path.join(BASE_DIR, filename), os.path.join(DATA_DIR, filename)
+        if os.path.exists(old_path) and not os.path.exists(new_path):
+            try:
+                shutil.copy2(old_path, new_path)
+            except OSError:
+                pass
+    # The Qt importer records an absolute credential path. Point a migrated
+    # settings file at its copied credential before a portable folder is removed.
+    settings_path = os.path.join(DATA_DIR, "ar730_settings.json")
+    old_credential = os.path.join(BASE_DIR, "firebase_service_account.json")
+    new_credential = os.path.join(DATA_DIR, "firebase_service_account.json")
+    if os.path.exists(settings_path) and os.path.exists(new_credential):
+        try:
+            with open(settings_path, "r", encoding="utf-8") as handle:
+                settings = json.load(handle)
+            if settings.get("firebase_service_account_file") == old_credential:
+                settings["firebase_service_account_file"] = new_credential
+                with open(settings_path, "w", encoding="utf-8") as handle:
+                    json.dump(settings, handle, ensure_ascii=False, indent=2)
+        except (OSError, ValueError):
+            pass
+
+
+_migrate_legacy_data()
+SETTINGS_FILE = os.path.join(DATA_DIR, "ar730_settings.json")
+DB_FILE = os.path.join(DATA_DIR, "ar730_devices.json")
+LOG_FILE = os.path.join(DATA_DIR, "ar730_session.log")
 # قاعدة أسماء المُصنِّعين من IEEE (MA-L وMA-M وMA-S) مضغوطة بـ zlib.
 # تُقرأ عند أول حاجة إليها؛ غيابها لا يعطّل شيئاً — يُعرض رمز المُصنِّع بدل اسمه.
-OUI_DIRS = (BASE_DIR, os.path.dirname(os.path.abspath(__file__)))
+OUI_DIRS = (RESOURCE_DIR, BASE_DIR, os.path.dirname(os.path.abspath(__file__)))
 OUI_FILE = "data/oui.dat"
 
 
@@ -3852,6 +3914,35 @@ class App(tk.Tk):
         self._refresh_device_table()
         self._refresh_portal_table()
         self._firebase_after = self.after(60000, self._firebase_poll)
+        # Network I/O stays off the GUI thread. Failure (including offline use)
+        # is silent and must never delay opening the management interface.
+        self.after(1500, self._start_update_check)
+
+    # -- تحديث التطبيق ------------------------------------------------------
+
+    def _start_update_check(self):
+        def worker():
+            update = check_for_update(APP_VERSION)
+            if update:
+                self.after(0, lambda: self._show_update_available(update))
+        threading.Thread(target=worker, name="ar730-update-check", daemon=True).start()
+
+    def _show_update_available(self, update):
+        if self.lang == "ar":
+            message = ("يتوفر إصدار جديد: %s\nالإصدار المثبت: %s\n\n"
+                       "يحتوي الإصدار على ملف مناسب لجهازك. يتحقق مُثبّت الأمر "
+                       "الواحد من SHA-256 قبل التثبيت، وبياناتك المحلية تبقى "
+                       "خارج مجلد التطبيق." % (update["version"], APP_VERSION))
+            question = "هل تريد فتح صفحة التنزيل الآن؟"
+        else:
+            message = ("Version %s is available (installed: %s).\n\n"
+                       "The release includes the correct installer for this computer. "
+                       "The one-command installer verifies SHA-256 before installing, "
+                       "and local data stays outside the app folder."
+                       % (update["version"], APP_VERSION))
+            question = "Open the download page now?"
+        if messagebox.askyesno("AR730 Manager update", message + "\n\n" + question, parent=self):
+            webbrowser.open(update["release_url"])
 
     # -- مزامنة Firebase ----------------------------------------------------
 

@@ -40,6 +40,36 @@ python ar730_qt.py --demo
 
 ## التثبيت
 
+راجع أيضاً [دليل التثبيت الأول والتحديث](INSTALL.md).
+
+### Windows وmacOS — بلا Python
+
+تنشر GitHub Releases نسخاً مستقلة لويندوز x64 وmacOS بمعالجي Apple Silicon وIntel؛ لا يحتاج
+المستخدم إلى تثبيت Python أو أي مكتبات.
+
+في **PowerShell على Windows**، ثبّت أو حدّث بأمر واحد:
+
+```powershell
+irm https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-manager/main/scripts/install.ps1 | iex
+```
+
+وفي **Terminal على macOS**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-manager/main/scripts/install.sh | bash
+```
+
+يختار كل أمر الملف المناسب للنظام ويتحقق من SHA-256 بمقارنته مع `SHA256SUMS.txt` قبل التثبيت.
+وعند بدء التطبيق يفحص GitHub Releases في الخلفية: إذا نُشر إصدار أحدث مناسب للجهاز تظهر رسالة
+برقم الإصدار المثبّت والجديد وزر لفتح صفحة التنزيل. تُحفظ الإعدادات وبيانات الأجهزة والسجل خارج
+مجلد البرنامج، لذلك لا يمسّها التحديث.
+
+**لأول مرة:** افتح الطرفية المناسبة أعلاه، الصق أمراً واحداً فقط، ثم افتح **AR730 Manager** من
+قائمة Start في Windows أو Applications في macOS. لا تحتاج إلى Python. ستجد نفس أوامر التثبيت
+ورقم الإصدار المثبّت في صفحة «الدليل والدعم» داخل التطبيق.
+
+### التطوير من المصدر
+
 يحتاج **Python 3.9 أو أحدث**.
 
 ```bash

@@ -94,6 +94,44 @@ This is where you train a new staff member.
 
 ## Installation
 
+See the concise [first-install and update guide](INSTALL.md) as well.
+
+### Windows and macOS — no Python required
+
+Published GitHub Releases contain native, self-contained builds for Windows x64, macOS Apple
+Silicon, and macOS Intel. The installer does not require Python or project dependencies to be
+installed first.
+
+On **Windows PowerShell**, install or upgrade with one command:
+
+```powershell
+irm https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-manager/main/scripts/install.ps1 | iex
+```
+
+On **macOS Terminal**, install or upgrade with one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-manager/main/scripts/install.sh | bash
+```
+
+Both commands fetch the matching release artifact and compare its SHA-256 digest against the
+release's `SHA256SUMS.txt` before running or copying it. Windows receives an Inno Setup installer
+plus a portable `.exe`; macOS receives a native `.app` in a ZIP archive. macOS may ask for an
+administrator password to replace the app in `/Applications`.
+
+The application checks GitHub Releases in the background at startup. If a newer matching build
+and checksum manifest are published, it displays the installed and available version and can open
+that release's download page. Settings, device records, and logs live outside the installation
+folder (`%APPDATA%\AFZ Systems\AR730 Manager` on Windows and
+`~/Library/Application Support/AR730 Manager` on macOS), so upgrading does not overwrite them.
+Existing portable-install data is copied there once, without deleting the original.
+
+**First installation:** open the matching terminal above, paste its one command, then launch
+**AR730 Manager** from the Windows Start menu or macOS Applications. Python is not needed. The
+same commands and the installed version are shown on the application's **Guide & Support** page.
+
+### Development from source
+
 Requires **Python 3.9 or newer**.
 
 ```bash

@@ -10,12 +10,14 @@ if errorlevel 1 goto fail
 
 echo.
 echo [2/3] بناء الملف التنفيذي...
-python -m PyInstaller --onefile --windowed --name AR730Manager --clean ar730_qt.py
+python build\create_app_icons.py
+if errorlevel 1 goto fail
+python -m PyInstaller --onefile --windowed --icon build\icons\afz-logo.ico --name AR730Manager --add-data "data;data" --add-data "assets;assets" --clean ar730_qt.py
 if errorlevel 1 goto fail
 
 echo.
 echo [3/3] تم.  الملف جاهز في:  dist\AR730Manager.exe
-echo انسخ الملف وحده الى اي مجلد — سينشئ ملفات الاعدادات وقاعدة البيانات بجانبه.
+echo تحفظ البيانات في %%APPDATA%%\AFZ Systems\AR730 Manager ولا يمسها التحديث.
 pause
 exit /b 0
 

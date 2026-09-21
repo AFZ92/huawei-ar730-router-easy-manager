@@ -76,6 +76,11 @@ _TEXT_BY_ARABIC.update({
     "تُعرض البيانات الحية وتُنفّذ الإجراءات من هذه الواجهة، مع إعادة القراءة للتحقق من نتيجة التغيير.": "This interface shows live data and performs actions, then rereads the router to verify each change.",
     "إدارة مباشرة للبيانات والإجراءات المرتبطة بالراوتر.": "Direct management of router data and actions.",
     "دليل تشغيل مختصر يوضح مسار العمل الآمن وقنوات الدعم.": "A concise operating guide for a safe workflow and support channels.",
+    "التثبيت والتحديث": "Installation & updates",
+    "للتثبيت الأول أو التحديث على Windows، افتح PowerShell ونفّذ:": "For first installation or an update on Windows, open PowerShell and run:",
+    "وعلى macOS، افتح Terminal ونفّذ:": "On macOS, open Terminal and run:",
+    "الإصدار المثبّت: ": "Installed version: ",
+    "يتحقق المثبّت من SHA-256، ولا يمسّ بياناتك المحلية عند التحديث.": "The installer verifies SHA-256 and preserves local data during updates.",
     "إدارة الوصول بثقة، لا بتخمين": "Manage access with confidence, not guesswork",
     "يحوّل التطبيق إجراءات Huawei AR730 المتكررة إلى خطوات واضحة: يراجع البيانات، ينفّذ التغيير، ثم يعيد القراءة للتأكد من ثبوته.": "The application turns repeated Huawei AR730 tasks into clear steps: review the data, apply the change, then read again to verify it persisted.",
     "1. ابدأ بوضع التجربة": "1. Start in demo mode",
@@ -1280,6 +1285,39 @@ class MainWindow(QMainWindow):
         self._render()
         if self.c.settings.get("wan_auto"):
             self.wan_timer.start(60000)
+        # Check asynchronously after the window is usable; offline operation
+        # remains fully supported and intentionally produces no warning.
+        QTimer.singleShot(1500, self._start_update_check)
+
+    def _start_update_check(self):
+        worker = Worker(lambda: legacy.check_for_update(legacy.APP_VERSION))
+        self.workers.append(worker)
+        worker.done.connect(lambda update: self._finish_update_check(worker, update))
+        worker.failed.connect(lambda unused: self._finish_update_check(worker, None))
+        worker.start()
+
+    def _finish_update_check(self, worker, update):
+        if worker in self.workers:
+            self.workers.remove(worker)
+        if not update:
+            return
+        if self.lang == "ar":
+            text = ("يتوفر إصدار جديد: %s\nالإصدار المثبت: %s\n\n"
+                    "يحتوي الإصدار على ملف مناسب لجهازك. يتحقق مُثبّت الأمر الواحد "
+                    "من SHA-256 قبل التثبيت، وبياناتك المحلية تبقى خارج مجلد التطبيق."
+                    % (update["version"], legacy.APP_VERSION))
+            prompt = "هل تريد فتح صفحة التنزيل الآن؟"
+        else:
+            text = ("Version %s is available (installed: %s).\n\n"
+                    "The release includes the correct installer for this computer. "
+                    "The one-command installer verifies SHA-256 before installing, "
+                    "and local data stays outside the app folder."
+                    % (update["version"], legacy.APP_VERSION))
+            prompt = "Open the download page now?"
+        answer = QMessageBox.question(self, "AR730 Manager update", text + "\n\n" + prompt,
+                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if answer == QMessageBox.Yes:
+            legacy.webbrowser.open(update["release_url"])
 
     def _build(self):
         self.surface = localized_surface(self.lang)
@@ -1474,6 +1512,22 @@ class MainWindow(QMainWindow):
             line.setContentsMargins(0, 5, 0, 5)
             body.addWidget(line)
         layout.addWidget(guide)
+
+        install = QFrame(objectName="panel")
+        install_layout = QVBoxLayout(install)
+        install_layout.setContentsMargins(24, 18, 24, 18)
+        install_layout.addWidget(QLabel(tr("التثبيت والتحديث"), objectName="title"))
+        install_text = QLabel(
+            tr("للتثبيت الأول أو التحديث على Windows، افتح PowerShell ونفّذ:") +
+            "<br><code>irm https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-manager/main/scripts/install.ps1 | iex</code><br><br>" +
+            tr("وعلى macOS، افتح Terminal ونفّذ:") +
+            "<br><code>curl -fsSL https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-manager/main/scripts/install.sh | bash</code><br><br>" +
+            tr("الإصدار المثبّت: ") + legacy.APP_VERSION + "<br>" +
+            tr("يتحقق المثبّت من SHA-256، ولا يمسّ بياناتك المحلية عند التحديث."))
+        install_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        install_text.setWordWrap(True)
+        install_layout.addWidget(install_text)
+        layout.addWidget(install)
 
         support = QFrame(objectName="panel")
         support_layout = QVBoxLayout(support)

@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 WORK = tempfile.mkdtemp(prefix="ar730qt_")
 APPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for filename in ("ar730_manager.py", "ar730_qt.py"):
+for filename in ("ar730_manager.py", "ar730_qt.py", "release_update.py"):
     shutil.copy(os.path.join(APPDIR, filename), WORK)
 shutil.copytree(os.path.join(APPDIR, "data"), os.path.join(WORK, "data"))
 shutil.copytree(os.path.join(APPDIR, "assets"), os.path.join(WORK, "assets"))
@@ -69,6 +69,10 @@ check("اسم AFZ تسمية هادئة أسفل الشعار", afz_credit is no
       and afz_credit.font().pixelSize() == 9
       and QFontMetrics(afz_credit.font()).horizontalAdvance(afz_credit.text()) <= afz_credit.width())
 check("حالة الاتصال تحت اسم AFZ", afz_credit is not None and window.connection.y() > afz_credit.y())
+guide_text = [label.text() for label in window.findChildren(QLabel)]
+check("دليل التطبيق يشرح أمر تثبيت Windows", any("install.ps1" in text for text in guide_text))
+check("دليل التطبيق يشرح أمر تثبيت macOS", any("install.sh" in text for text in guide_text))
+check("دليل التطبيق يعرض رقم الإصدار", any(qt.legacy.APP_VERSION in text for text in guide_text))
 english_text = []
 for widget_type in (QLabel, QPushButton, QCheckBox):
     for widget in window.findChildren(widget_type):
