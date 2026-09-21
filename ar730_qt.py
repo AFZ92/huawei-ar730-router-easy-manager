@@ -379,6 +379,7 @@ QFrame#sidebar { background: #132238; }
 QLabel#brand { color: white; font-size: 20px; font-weight: 700; }
 QLabel#subtle { color: #667085; font-size: 12px; }
 QLabel#sideSub { color: #A8BCD5; font-size: 12px; }
+QLabel#sideVersion { color: #7E9BBC; font-size: 11px; font-weight: 600; }
 QLabel#afzLogo { background: transparent; }
 QLabel#afzCredit { color: #C6D3E2; font-weight: 700; }
 QLabel#routerStatus[connected="true"], QLabel#connectionStatus[connected="true"] { color: #067647; font-weight: 700; }
@@ -1472,6 +1473,9 @@ class MainWindow(QMainWindow):
         side.setSpacing(5)
         side.addWidget(QLabel("AR730", objectName="brand"))
         side.addWidget(QLabel("مدير الوصول والشبكة", objectName="sideSub"))
+        version_label = QLabel("v" + legacy.APP_VERSION, objectName="sideVersion")
+        version_label.setAlignment(Qt.AlignRight if self.lang == "ar" else Qt.AlignLeft)
+        side.addWidget(version_label)
         side.addSpacing(22)
         self.nav = []
         labels = [tr("نظرة عامة")] + [item["title"] for item in self.surface.values()] + [tr("الدليل والدعم")]

@@ -70,6 +70,9 @@ check("اسم AFZ بعرض الشعار وتحته", afz_logo is not None and af
 check("اسم AFZ تسمية هادئة أسفل الشعار", afz_credit is not None
       and afz_credit.font().pixelSize() == 9
       and QFontMetrics(afz_credit.font()).horizontalAdvance(afz_credit.text()) <= afz_credit.width())
+side_version = window.findChild(QLabel, "sideVersion")
+check("رقم الإصدار ظاهر في الشريط الجانبي", side_version is not None
+      and side_version.text() == "v" + qt.legacy.APP_VERSION)
 check("حالة الاتصال تحت اسم AFZ", afz_credit is not None and window.connection.y() > afz_credit.y())
 guide_text = [label.text() for label in window.findChildren(QLabel)]
 check("دليل التطبيق يشرح أمر تثبيت Windows", any("install.ps1" in text for text in guide_text))

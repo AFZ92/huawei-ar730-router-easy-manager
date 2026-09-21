@@ -77,10 +77,15 @@ try:
 finally:
     updates.urllib.request.urlopen = original_open
 
-mac_script = updates._macos_updater_script({
-    "asset": {"name": "AR730Manager-macOS-arm64.zip", "url": "https://example.invalid/app.zip"},
-    "checksums": {"name": "SHA256SUMS.txt", "url": "https://example.invalid/sums"},
-}, 123, "/Applications/AR730Manager.app")
+original_access = updates.os.access
+updates.os.access = lambda path, mode: False
+try:
+    mac_script = updates._macos_updater_script({
+        "asset": {"name": "AR730Manager-macOS-arm64.zip", "url": "https://example.invalid/app.zip"},
+        "checksums": {"name": "SHA256SUMS.txt", "url": "https://example.invalid/sums"},
+    }, 123, "/Applications/AR730Manager.app")
+finally:
+    updates.os.access = original_access
 check("macOS updater waits for the app, verifies SHA-256, then relaunches", "/bin/kill -0" in mac_script and "shasum -a 256" in mac_script and "/usr/bin/open -a" in mac_script)
 check("macOS updater requests authorization only for protected install paths", "with administrator privileges" in mac_script)
 
