@@ -63,7 +63,7 @@ check("شعار AFZ يحافظ على نسبة أبعاده", afz_logo is not No
       and afz_logo.pixmap().width() == 70
       and abs((afz_logo.pixmap().width() / afz_logo.pixmap().height()) - (3900 / 2864)) < 0.02)
 check("اسم AFZ بعرض الشعار وتحته", afz_logo is not None and afz_credit is not None
-      and afz_credit.text() == "AFZ Systems" and afz_credit.width() == afz_logo.width()
+      and afz_credit.text() == "AFZ Systems" and afz_credit.width() >= afz_logo.width()
       and afz_credit.y() > afz_logo.y())
 check("اسم AFZ تسمية هادئة أسفل الشعار", afz_credit is not None
       and afz_credit.font().pixelSize() == 9

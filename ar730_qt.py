@@ -1364,6 +1364,10 @@ class MainWindow(QMainWindow):
         credit_font.setBold(True)
         credit.setFont(credit_font)
         credit.setAlignment(Qt.AlignCenter)
+        # Font metrics vary slightly between macOS, Windows and Linux. Keep
+        # the attribution readable rather than clipping it to the logo width.
+        credit.setFixedWidth(max(logo_pixmap.width(),
+                                 QFontMetrics(credit_font).horizontalAdvance(credit.text()) + 2))
         side.addWidget(credit, alignment=Qt.AlignCenter)
         self.connection = QLabel("● غير متصل", objectName="connectionStatus")
         connection_font = self.connection.font()
