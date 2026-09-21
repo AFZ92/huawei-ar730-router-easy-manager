@@ -374,7 +374,8 @@ QPushButton { background: #FFFFFF; border: 1px solid #D0D5DD; border-radius: 7px
 QPushButton:hover { background: #F9FAFB; border-color: #98A2B3; }
 QPushButton#primary { background: #155EEF; color: white; border-color: #155EEF; font-weight: 700; }
 QPushButton#danger { background: #B42318; color: white; border-color: #B42318; font-weight: 700; }
-QPushButton#nav { color: #C6D3E2; background: transparent; border: 0; padding: 10px 13px; text-align: right; }
+QPushButton#nav { color: #C6D3E2; background: transparent; border: 0; padding: 10px 13px; text-align: left; }
+QPushButton#nav[rtl="true"] { text-align: right; }
 QPushButton#nav:hover { background: #213752; color: white; }
 QPushButton#nav:checked { background: #26496F; color: white; font-weight: 700; }
 QLineEdit { background: white; color: #172033; border: 1px solid #D0D5DD; border-radius: 7px; padding: 8px; }
@@ -1339,6 +1340,10 @@ class MainWindow(QMainWindow):
         labels = [tr("نظرة عامة")] + [item["title"] for item in self.surface.values()] + [tr("الدليل والدعم")]
         for index, label in enumerate(labels):
             button = QPushButton(label, objectName="nav")
+            # Qt style sheets do not infer text alignment from layout direction.
+            # Keep English labels anchored to the left and Arabic labels to the
+            # right, rather than applying the Arabic alignment to both.
+            button.setProperty("rtl", self.lang == "ar")
             button.setCheckable(True)
             button.clicked.connect(lambda checked=False, i=index: self.stack.setCurrentIndex(i))
             button.clicked.connect(lambda checked=False, i=index: self._select_nav(i))
