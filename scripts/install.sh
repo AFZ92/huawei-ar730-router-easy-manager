@@ -13,6 +13,10 @@ expected="$(awk -v name="$artifact" '$2 == name { print $1 }' "$work/SHA256SUMS.
 actual="$(shasum -a 256 "$work/$artifact" | awk '{ print $1 }')"
 [ -n "$expected" ] && [ "$expected" = "$actual" ] || { echo "SHA-256 verification failed. Nothing was installed." >&2; exit 1; }
 ditto -x -k "$work/$artifact" "$work/unpacked"
-sudo rm -rf "/Applications/AR730Manager.app"
-sudo ditto "$work/unpacked/AR730Manager.app" "/Applications/AR730Manager.app"
-open -a "/Applications/AR730Manager.app"
+# A per-user application directory keeps later in-app updates free of an
+# administrator-password prompt. User data is stored separately by the app.
+target="$HOME/Applications/AR730Manager.app"
+mkdir -p "$HOME/Applications"
+rm -rf "$target"
+ditto "$work/unpacked/AR730Manager.app" "$target"
+open -a "$target"

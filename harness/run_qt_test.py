@@ -313,6 +313,15 @@ check("رفض Qt كلمة مرور تساوي الحساب قبل الراوتر
 check("رفض Qt حساب بوابة مكرر", controller.create_portal(
       portal_user, "Qt-Portal-9", "", "grp_staff", "").code == "duplicate")
 
+print("٧٫٥ — تغيير كلمة سر MAC وتعميمها")
+mac_profiles = controller.read_mac_password_profiles()
+check("Qt يجلب ملفات MAC قبل التغيير", bool(mac_profiles) and "m_wl" in mac_profiles)
+rotated_mac_password = controller.rotate_mac_password("m_wl", "Qt-Shared-11")
+check("تغيير كلمة سر MAC Qt نجح", rotated_mac_password.ok and rotated_mac_password.code == "rotated")
+check("تغيير كلمة سر MAC يحفظ القيمة الجديدة", controller.settings.get("mac_shared_password") == "Qt-Shared-11")
+check("تغيير كلمة سر MAC يفك الحساب المحظور", "00005e005303" in (rotated_mac_password.data or {}).get("unblocked", []))
+check("نافذة تغيير كلمة سر MAC موجودة", hasattr(qt, "RotateMacPasswordDialog"))
+
 print("٨ — تغيير كلمة مرور حساب البوابة")
 password_changed = controller.change_portal_password(portal_user, "Qt-Changed-10")
 check("تغيير كلمة مرور البوابة Qt نجح", password_changed.ok and password_changed.code == "password_changed")
@@ -351,6 +360,17 @@ check("تحديث أجهزة الإدارة لا يغير الراوتر", befor
 check("تحديث أجهزة الإدارة يبني الصفوف", isinstance(management, list))
 suggested_mgmt_ip = controller.suggested_management_ip("Vlanif1")
 check("اقتراح جهاز الإدارة يختار أعلى عنوان حر", suggested_mgmt_ip == "10.0.1.254")
+management_added = controller.add_management(
+    "00:00:5e:00:53:02", "Qt management device", "Vlanif20", "", "2999")
+check("إضافة جهاز الإدارة Qt تنجح", management_added.ok and management_added.code == "added")
+added_management_ip = (management_added.data or {}).get("plan", {}).get("ip")
+check("إضافة جهاز الإدارة تتحقق من DHCP وARP وACL", bool(added_management_ip)
+      and any(entry["ip"] == added_management_ip and entry["complete"]
+              for entry in controller.mgmt_rows))
+management_rejected = controller.add_management(
+    "00:00:5e:00:53:99", "Untrusted device", "Vlanif20", "", "2999")
+check("رفض جهاز إدارة غير موثوق يحمل سبباً مفصلاً", management_rejected.code == "invalid_plan"
+      and any(key == "mgmt_err_untrusted" for key, _ in (management_rejected.data or {}).get("errors", [])))
 controller._write_router_log("display access-user\npassword cipher secret-value\n")
 window._render()
 check("سجل الأوامر يعرض نشاط Qt ويخفي كلمة المرور", "display access-user" in window.log_text.toPlainText()

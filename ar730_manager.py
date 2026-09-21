@@ -41,7 +41,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 
-from release_update import check_for_update
+from release_update import apply_windows_update, check_for_update, launch_update
 
 try:
     from cryptography.hazmat.primitives import hashes, serialization
@@ -69,7 +69,7 @@ except ImportError:
 APP_NAME = "Huawei AR730 Router Easy Manager"
 # Release tags are vMAJOR.MINOR.PATCH. Keep this in sync with the tag used to
 # publish a release; the updater compares it with GitHub Releases on startup.
-APP_VERSION = "1.0.5"
+APP_VERSION = "1.0.6"
 VENDOR = "AFZ Systems"
 DEFAULT_SSH_PORT = 22
 # مساحة اسم الراوتر داخل تسمية الحالة؛ ما زاد عنها يُختصر بدل أن يوسّع الشريط

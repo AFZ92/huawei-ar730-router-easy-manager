@@ -241,6 +241,15 @@ _TEXT_BY_ARABIC.update({
     "سيستبدل هذا الإجراء بيانات Firebase بالبيانات المحلية الحالية. هل تريد المتابعة؟": "This will replace Firebase data with this device's current local data. Continue?",
     "تم تنزيل بيانات Firebase مع نسخة احتياطية محلية.": "Firebase data was downloaded and a local backup was created.",
     "تم رفع البيانات المحلية إلى Firebase.": "Local data was uploaded to Firebase.",
+    "ملف MAC": "MAC profile",
+    "تأكيد كلمة السر": "Confirm password",
+    "متابعة": "Continue",
+    "كلمتا السر غير متطابقتين.": "The passwords do not match.",
+    "أدخل كلمة سر جديدة بدلاً من القيمة الافتراضية.": "Enter a new password instead of the default value.",
+    "كلمة السر غير صالحة.": "The password is invalid.",
+    "لا يوجد ملف MAC صالح.": "No valid MAC profile was found.",
+    "تغيير كلمة السر": "Change password",
+    "تأكيد تغيير كلمة السر": "Confirm password change",
     "نسخ": "Copy",
 })
 
@@ -876,6 +885,10 @@ class ReadController:
         self.db.log("rotate_mac_password", profile, "%d accounts" % len(macs))
         return legacy.ActionResult(not result["failed"], "rotated" if not result["failed"] else "partial", data=result)
 
+    def read_mac_password_profiles(self):
+        """يجلب ملفات MAC في خيط العامل؛ لا نسمح لزر الواجهة بحجب Qt."""
+        return self.router.read_mac_profiles()
+
     def _firebase_ready(self):
         self.firebase = legacy.FirebaseSync(self.settings)
         if self.settings.get("storage_mode") != "firebase":
@@ -1099,6 +1112,38 @@ class ResetPortalPasswordDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText("تغيير كلمة المرور")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("إلغاء")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+
+class RotateMacPasswordDialog(QDialog):
+    """يجمع مدخلات التغيير قبل أي أمر كتابة على الراوتر."""
+    def __init__(self, profiles, preferred_profile, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("تغيير كلمة السر وتعميمها")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumWidth(460)
+        form = QFormLayout(self)
+        form.setContentsMargins(24, 22, 24, 22)
+        form.setSpacing(12)
+        self.profile = QComboBox()
+        self.profile.addItems(sorted(profiles))
+        if preferred_profile in profiles:
+            self.profile.setCurrentText(preferred_profile)
+        self.password = QLineEdit()
+        self.password.setEchoMode(QLineEdit.Password)
+        self.password.setPlaceholderText("8 محارف على الأقل")
+        self.password_confirm = QLineEdit()
+        self.password_confirm.setEchoMode(QLineEdit.Password)
+        form.addRow("ملف MAC", self.profile)
+        form.addRow("كلمة السر الجديدة", self.password)
+        form.addRow("تأكيد كلمة السر", self.password_confirm)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("متابعة")
         buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("إلغاء")
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -1390,21 +1435,27 @@ class MainWindow(QMainWindow):
             return
         if self.lang == "ar":
             text = ("يتوفر إصدار جديد: %s\nالإصدار المثبت: %s\n\n"
-                    "يحتوي الإصدار على ملف مناسب لجهازك. يتحقق مُثبّت الأمر الواحد "
-                    "من SHA-256 قبل التثبيت، وبياناتك المحلية تبقى خارج مجلد التطبيق."
+                    "سيُنزل التطبيق التحديث المناسب ويتحقق من SHA-256 ثم يثبّته "
+                    "ويعيد تشغيل نفسه. بياناتك المحلية تبقى خارج مجلد التطبيق."
                     % (update["version"], legacy.APP_VERSION))
-            prompt = "هل تريد فتح صفحة التنزيل الآن؟"
+            prompt = "هل تريد تثبيت التحديث الآن؟"
         else:
             text = ("Version %s is available (installed: %s).\n\n"
-                    "The release includes the correct installer for this computer. "
-                    "The one-command installer verifies SHA-256 before installing, "
-                    "and local data stays outside the app folder."
+                    "The app will download the correct update, verify SHA-256, install it, "
+                    "and restart. Local data stays outside the app folder."
                     % (update["version"], legacy.APP_VERSION))
-            prompt = "Open the download page now?"
+            prompt = "Install the update now?"
         answer = QMessageBox.question(self, "AR730 Manager update", text + "\n\n" + prompt,
                                       QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if answer == QMessageBox.Yes:
-            legacy.webbrowser.open(update["release_url"])
+            ok, error = legacy.launch_update(update)
+            if not ok:
+                if self.lang == "ar":
+                    QMessageBox.warning(self, "تحديث التطبيق", "تعذر بدء التحديث التلقائي:\n" + error)
+                else:
+                    QMessageBox.warning(self, "Application update", "Could not start the automatic update:\n" + error)
+                return
+            QTimer.singleShot(50, self.close)
 
     def _build(self):
         self.surface = localized_surface(self.lang)
@@ -2404,7 +2455,12 @@ class MainWindow(QMainWindow):
 
     def _add_management(self):
         if not self.c.router.connected: QMessageBox.information(self, "أجهزة الإدارة", "اتصل بالراوتر أولاً."); return
-        if not self.c.mgmt_state: self._refresh_management(); return
+        # صفحة الإدارة لا تُحمّل حالتها عند فتح التطبيق. سابقاً كانت الضغطة
+        # الأولى تحدّثها ثم تنتهي بصمت، فيبدو زر الإضافة معطلاً. نكمل الإجراء
+        # نفسه بعد انتهاء القراءة، ولا نطلب من المستخدم ضغطة ثانية.
+        if not self.c.mgmt_state:
+            self._run(self.c.refresh_management, lambda _result: self._add_management())
+            return
         dialog = QDialog(self); dialog.setWindowTitle("إضافة جهاز إدارة"); form = QFormLayout(dialog)
         mac, name, ip, iface, acl = QLineEdit(), QLineEdit(), QLineEdit(), QComboBox(), QComboBox()
         iface.setMinimumContentsLength(28)
@@ -2451,7 +2507,56 @@ class MainWindow(QMainWindow):
         if dialog.exec() != QDialog.Accepted: return
         detail = "سيُنشئ ربط DHCP وARP ثابتاً وقاعدة ACL لهذا العنوان فقط."
         if QMessageBox.question(self, "تأكيد إضافة جهاز إدارة", detail, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
-        self._run(lambda: self.c.add_management(mac.text(), name.text(), iface.currentData(), ip.text(), acl.currentData()), self._show_action("أجهزة الإدارة"))
+        self._run(lambda: self.c.add_management(mac.text(), name.text(), iface.currentData(), ip.text(), acl.currentData()), self._show_management_result)
+
+    def _management_validation_text(self, items):
+        """يعرض مفاتيح تحقق المحرك نفسها التي كانت تعرضها واجهة Tk."""
+        messages = legacy.TXT.get(self.lang, legacy.TXT["ar"])
+        lines = []
+        for key, values in items or []:
+            template = messages.get(key, key)
+            try:
+                lines.append("• " + (template % values))
+            except (KeyError, TypeError, ValueError):
+                lines.append("• " + template)
+        return "\n".join(lines)
+
+    def _show_management_result(self, result):
+        """لا تُخفِ سبب رفض خطة الإدارة خلف رمز مثل invalid_plan."""
+        title = tr("أجهزة الإدارة")
+        data = result.data or {}
+        messages = legacy.TXT.get(self.lang, legacy.TXT["ar"])
+        if result.code == "added":
+            ip = data.get("plan", {}).get("ip", "")
+            QMessageBox.information(self, title, messages["mgmt_ok_status"] % ip)
+            return
+        if result.code == "bad_mac":
+            QMessageBox.warning(self, title, messages["err_bad_mac"])
+            return
+        if result.code == "missing_name":
+            QMessageBox.warning(self, title, messages["err_need_name"])
+            return
+        if result.code == "invalid_plan":
+            text = self._management_validation_text(data.get("errors"))
+            warnings = self._management_validation_text(data.get("warnings"))
+            if warnings:
+                text += ("\n\n" if text else "") + messages["mgmt_warn_head"] + "\n" + warnings
+            QMessageBox.warning(self, title, messages["mgmt_err_title"] + ("\n\n" + text if text else ""))
+            return
+        if result.code == "partial":
+            failed_step, error = data.get("failed_step"), data.get("error")
+            missing = data.get("missing") or []
+            if failed_step:
+                message = messages["mgmt_fail"] % {"step": failed_step,
+                                                    "error": error or "—",
+                                                    "rollback": ""}
+            elif missing:
+                message = messages["mgmt_missing"] % ", ".join(missing)
+            else:
+                message = result.error or messages["mgmt_incomplete"]
+            QMessageBox.critical(self, title, message)
+            return
+        QMessageBox.warning(self, title, result.error or result.code)
 
     def _remove_management(self):
         ip = self._selected_row("management")
@@ -2557,13 +2662,73 @@ class MainWindow(QMainWindow):
                                 "تم استيراد بيانات اعتماد Firebase. يمكنك الآن اختيار وضع التخزين.")
 
     def _rotate_mac_password(self):
-        if not self.c.router.connected: QMessageBox.information(self, "تغيير كلمة السر", "اتصل بالراوتر أولاً."); return
-        password = self.setting_mac_password.text()
-        profiles = self.c.router.read_mac_profiles()
-        if not profiles: QMessageBox.warning(self, "تغيير كلمة السر", "لا يوجد ملف MAC صالح."); return
-        profile = next(iter(sorted(profiles)))
-        if QMessageBox.question(self, "تأكيد تغيير كلمة السر", "ستتغير كلمة السر في الملف وكل حسابات MAC، وتُفك الحسابات المحظورة.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
-        self._run(lambda: self.c.rotate_mac_password(profile, password), self._show_action("تغيير كلمة السر"))
+        if not self.c.router.connected:
+            QMessageBox.information(self, "تغيير كلمة السر", "اتصل بالراوتر أولاً.")
+            return
+        # القراءة قد تستغرق زمن الشبكة؛ نفذها في العامل حتى لا يبدو الزر بلا استجابة.
+        self._run(self.c.read_mac_password_profiles, self._choose_mac_password_rotation)
+
+    def _choose_mac_password_rotation(self, profiles):
+        if not profiles:
+            QMessageBox.warning(self, "تغيير كلمة السر", "لا يوجد ملف MAC صالح.")
+            return
+        dialog = RotateMacPasswordDialog(
+            profiles, self.c.settings.get("mac_access_profile", ""), self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        password = dialog.password.text()
+        if password != dialog.password_confirm.text():
+            QMessageBox.warning(self, "تغيير كلمة السر", "كلمتا السر غير متطابقتين.")
+            return
+        problem = legacy.mac_password_problem(password)
+        if problem:
+            messages = {
+                "err_placeholder_pw": "أدخل كلمة سر جديدة بدلاً من القيمة الافتراضية.",
+                "err_pw_weak": "كلمة السر يجب أن تكون 8 محارف على الأقل وتحتوي نوعين من المحارف.",
+                "err_pw_chars": "كلمة السر لا يجوز أن تحتوي مسافات أو ? أو علامات تنصيص.",
+                "err_pw_is_mac": "كلمة السر لا يجوز أن تساوي عنوان MAC.",
+            }
+            QMessageBox.warning(self, "تغيير كلمة السر", messages.get(problem, "كلمة السر غير صالحة."))
+            return
+        profile = dialog.profile.currentText()
+        if QMessageBox.question(
+                self, "تأكيد تغيير كلمة السر",
+                "سيُحدّث التطبيق ملف %s وكل حسابات MAC، ويفك الحسابات المحظورة. هل تريد المتابعة؟" % profile,
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.rotate_mac_password(profile, password),
+                  self._show_mac_password_rotation_result)
+
+    def _show_mac_password_rotation_result(self, result):
+        if result.code == "rotated":
+            self.setting_mac_password.setText(self.c.settings.get("mac_shared_password", ""))
+            count = len((result.data or {}).get("unblocked", []))
+            extra = "\nتم فك حظر %d حساب." % count if count else ""
+            QMessageBox.information(self, "تغيير كلمة السر",
+                                    "تم تغيير كلمة السر في الملف وحسابات MAC بنجاح." + extra)
+            return
+        if result.code == "partial":
+            self.setting_mac_password.setText(self.c.settings.get("mac_shared_password", ""))
+            failed = (result.data or {}).get("failed", {})
+            detail = "\n".join("%s — %s" % (legacy.mac_pretty(mac), error)
+                               for mac, error in sorted(failed.items()))
+            QMessageBox.warning(self, "تغيير كلمة السر",
+                                "تغيّرت كلمة السر في الملف، لكن بعض الحسابات رفضت التحديث.\n\n" + detail)
+            return
+        if result.code == "profile_failed":
+            error = (result.data or {}).get("profile_error") or result.error
+            QMessageBox.critical(self, "تغيير كلمة السر",
+                                 "لم تتغير كلمة السر في ملف MAC، لذلك لم يُحدّث أي حساب.\n\n%s" % (error or "تعذر التحقق من التغيير."))
+            return
+        messages = {
+            "missing_profile": "ملف MAC المحدد لم يعد موجوداً. حدّث البيانات ثم حاول مرة أخرى.",
+            "err_placeholder_pw": "أدخل كلمة سر جديدة بدلاً من القيمة الافتراضية.",
+            "err_pw_weak": "كلمة السر يجب أن تكون 8 محارف على الأقل وتحتوي نوعين من المحارف.",
+            "err_pw_chars": "كلمة السر لا يجوز أن تحتوي مسافات أو ? أو علامات تنصيص.",
+            "err_pw_is_mac": "كلمة السر لا يجوز أن تساوي عنوان MAC.",
+        }
+        QMessageBox.warning(self, "تغيير كلمة السر",
+                            messages.get(result.code, result.error or "تعذرت العملية: " + result.code))
 
     def _firebase_download(self):
         if QMessageBox.question(self, "تنزيل البيانات من Firebase",
@@ -2962,7 +3127,18 @@ class MainWindow(QMainWindow):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--demo", "-d", action="store_true")
+    parser.add_argument("--apply-update", nargs=2, metavar=("PARENT_PID", "PLAN"))
     args = parser.parse_args()
+    if args.apply_update:
+        parent_pid, plan = args.apply_update
+        try:
+            legacy.apply_windows_update(json.loads(plan), int(parent_pid))
+        except Exception as exc:
+            # This process has no GUI by design: it must be able to replace the
+            # application's executable after the UI process exits.
+            print("AR730 Manager update failed: %s" % exc, file=sys.stderr)
+            return 1
+        return 0
     app = QApplication(sys.argv)
     # يمنع وراثة عناصر Cocoa الداكنة داخل حوارات Qt في macOS.
     app.setStyle(QStyleFactory.create("Fusion"))
@@ -2973,4 +3149,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

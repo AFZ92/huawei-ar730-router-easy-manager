@@ -116,13 +116,14 @@ curl -fsSL https://raw.githubusercontent.com/AFZ92/huawei-ar730-router-easy-mana
 
 Both commands fetch the matching release artifact and compare its SHA-256 digest against the
 release's `SHA256SUMS.txt` before running or copying it. Windows receives an Inno Setup installer
-plus a portable `.exe`; macOS receives a native `.app` in a ZIP archive. macOS may ask for an
-administrator password to replace the app in `/Applications`.
+plus a portable `.exe`; macOS receives a native `.app` in `~/Applications`, so later in-app
+updates do not require an administrator password.
 
 The application checks GitHub Releases in the background at startup. If a newer matching build
-and checksum manifest are published, it displays the installed and available version and can open
-that release's download page. Settings, device records, and logs live outside the installation
-folder (`%APPDATA%\AFZ Systems\AR730 Manager` on Windows and
+and checksum manifest are published, it displays the installed and available version. On approval,
+an external updater downloads the artifact, verifies SHA-256, installs it after the app closes,
+and restarts it. Settings, device records, and logs live outside the installation folder
+(`%APPDATA%\AFZ Systems\AR730 Manager` on Windows and
 `~/Library/Application Support/AR730 Manager` on macOS), so upgrading does not overwrite them.
 Existing portable-install data is copied there once, without deleting the original.
 
