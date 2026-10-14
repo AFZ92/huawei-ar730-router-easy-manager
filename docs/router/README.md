@@ -51,6 +51,8 @@ test relies on one:
 7. `undo dhcp server static-bind … mac-address …` fails with `Too many parameters`.
 8. `arp static … vid N` without `interface` is `Incomplete`.
 9. A route tracked by a TCP probe is not withdrawn; with an ICMP probe it is.
+10. `dhcp server excluded-ip-address` asks before excluding used/conflict addresses, then disables
+    matching dynamic leases; see `captures/08-dhcp-pool-control.txt`.
 
 Real replies that no simulator produces yet (as of 2026-09-15), worth adding if a feature depends on
 them:
@@ -68,3 +70,4 @@ These appear as ❓ in the command reference. Capture them once and move them to
 - `undo arp static IP` and `undo arp static IP MAC`
 - whether `POST /logout` from a custom portal page really ends the session
 - `local-user MAC12 ?` (is there any description attribute?)
+- the silent success reply for `undo nat static protocol tcp global current-interface PORT inside IP PORT`; its grammar is confirmed by device help, but no live rule was removed solely to capture its success reply

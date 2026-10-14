@@ -65,6 +65,7 @@ on an AR730 — and it does it in a way a non-engineer can be trusted with.
 | **Portal accounts** | Create and delete captive-portal accounts, reset passwords, change permission groups. The right path for phones. |
 | **Live sessions** | See who is connected, on which IP and MAC, authenticated or pending. Cut any session. Promote a connected device straight into the whitelist with one click. |
 | **Permission groups** | List groups with the ACL number bound to each one, and the member count. |
+| **Port forwarding** | List and add verified TCP static-NAT rules. The form rejects a reused WAN port, an unreachable internal target, and a target incorrectly placed on the WAN subnet before it changes the router. |
 | **Search** | Live filtering across every table by MAC, name, status, group, IP or note. MAC matching ignores separators — typing `00005e00` finds `00:00:5E:00:53:01`. |
 | **Local records** | Owner name, note, date added, and revocation reason — the human context the router has no field for. Editable offline, with no SSH connection needed. |
 | **Command log** | Every command sent and every reply received, in full. The first place to look when something misbehaves. |
@@ -146,34 +147,57 @@ The included launchers start the Qt desktop application on macOS, Windows and Li
 
 ## Synchronising manager devices with Firebase
 
-The application always keeps working from its local data. Optionally, it can also store device
-names, accounts and history in Firebase Firestore and keep them in sync with the other manager
-devices: after each change, at launch, and every minute while it is running. If the internet is
-unavailable, the change remains local and is uploaded when connectivity returns.
+After configuring **Firebase primary** once, local saves synchronize automatically in the
+background. The app reads other devices' updates at launch and every five seconds while no
+router operation is running. Upload/download decisions are no longer required. All devices
+must use the same Firebase project and **Cloud Firestore `(default)`** database.
 
-1. Create a Firebase project and a **Cloud Firestore** database, then create a dedicated
-   service account with the minimum Firestore permissions required by your deployment.
-2. In Firestore Rules, allow authenticated users to access only the application's document:
+1. Import the service-account JSON in **Settings**, select **Firebase primary**, and save.
+2. Service-account access uses **IAM**, not Firestore Rules. Grant the deployment's account
+   permission to read/write `ar730_manager/shared_state` and create/read documents in
+   `ar730_manager_revisions`.
+3. Update and restart **every manager device**. Older versions can still overwrite a complete
+   cloud snapshot without the new synchronization safeguards.
+
+The legacy Web API Key / Firebase Authentication login remains supported. For that method,
+restrict Firestore Rules to the synchronization account (replace `SYNC_ACCOUNT_UID`):
 
 ```text
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /ar730_manager/shared_state {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.auth != null && request.auth.uid == 'SYNC_ACCOUNT_UID';
+    }
+    match /ar730_manager_revisions/{revision} {
+      allow read, create: if request.auth != null && request.auth.uid == 'SYNC_ACCOUNT_UID';
+      allow update, delete: if false;
     }
   }
 }
 ```
 
-3. In **Settings**, choose **Import Firebase credentials**, select the downloaded service-account
-   JSON file, then choose **Sync Firebase now**. The application copies the credential into its
-   local runtime directory with restricted permissions; its private key is never shown, logged or
-   sent to Firestore.
+Each device merges its changes relative to its last durable acknowledgement. Conditional
+writes use Firestore's document revision; concurrent writes trigger a reread and merge.
+First-time synchronization retains records from both local and cloud data. Deletion markers
+prevent stale installations from resurrecting removed records or fields. Concurrent edits to
+different fields merge; for the same field, the cloud's committed value wins and the other
+value remains in recovery snapshots. Changes made locally during a request remain pending.
 
-Leaving credentials unconfigured retains local-only storage. The SSH password, shared MAC-account
-password and service-account credential are never uploaded. The former Web API Key login remains
-supported only for existing deployments.
+Input and resulting snapshots are archived in `ar730_manager_revisions` before writing. The
+app never automatically prunes these archives. Local recovery copies are stored in `backups`
+and `ar730_devices.json.bak`. The sidebar shows pending synchronization, errors and preserved
+conflicts. If network access, permission, quota or backup creation fails, writes remain local
+and retry automatically, including after a restart. Local files use flushed atomic writes;
+the database and synchronization checkpoint share one file. The active history retains its
+latest 2000 events; older events remain in recovery snapshots. Offline history is not trimmed.
+No mechanism can guarantee protection against manual deletion of backups, disk loss or cloud
+account loss; maintain an independent backup as well. Archives also consume Firestore storage.
+
+Only device/account metadata, names, history and shared network preferences synchronize.
+Connection details, language, credentials and passwords stay local. **Local only** disables
+synchronization. The conditional write contract is described in the
+[Firebase REST reference](https://firebase.google.com/docs/firestore/reference/rest/v1/projects.databases.documents/patch).
 
 ## Configuration
 

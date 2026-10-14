@@ -40,6 +40,9 @@ jobs:
       - name: Release update logic
         run: python harness/run_distribution_test.py
 
+      - name: Firebase concurrent sync and recovery
+        run: python harness/run_firebase_test.py
+
   compile:
     name: byte-compile
     runs-on: ubuntu-latest
@@ -49,4 +52,4 @@ jobs:
         with:
           python-version: "3.9"
       - name: Verify the application compiles on the minimum supported version
-        run: python -m compileall -q ar730_manager.py harness
+        run: python -m compileall -q ar730_manager.py ar730_qt.py firebase_merge.py harness

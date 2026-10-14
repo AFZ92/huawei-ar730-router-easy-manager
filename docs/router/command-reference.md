@@ -63,12 +63,36 @@ Status legend:
 | `mac-access-profile name m_wl` | system | ✅ | Enters `[HOST-mac-access-profile-m_wl]`. |
 | `mac-authen username macaddress format without-hyphen password cipher PW` | mac-access-profile | ✅ | `Info: The password should meet the complexity check requirement.` This is **accepted**. Confirm with `display this`: the cipher text changes. |
 | MAC account creation (app): `local-user MAC12 service-type 8021x` / `password cipher PW` / `user-group G` | aaa | ✅ (via app) | The order matters. The password must equal the profile's shared password, otherwise the device is rejected and the account **blocks itself** after repeated failures. |
-| `cut access-user user-id N` | aaa | ✅ (app-confirmed) | Used successfully by the production app to disconnect one selected access-user session. The raw terminal reply has not yet been captured; retain this note until it is. |
+| `cut access-user user-id N` | aaa | ✅ | `Info: Total 1  user(s) being cut.` on one matched session. |
 | `cut access-user ?` | **user** and **system** | ⛔ | `Error: Unrecognized command found at '^' position.` (caret under `cut`) in both. |
 | `cut access-user ?` | **aaa** | ✅ | The only view that accepts it. Keys: `access-slot`, `access-type`, `domain`, `interface`, `ip-address`, `mac-address`, `service-scheme`, `ssid`, `user-group`, `user-id`, `username`. So a whole interface, domain, user-group or SSID can be cut in one command. It acts on **access users only** — a network with no `authentication-profile` has no session to cut. This confirms the app's revoke sequence (system-view → aaa → … → `cut access-user mac-address`) uses the right view. |
 | `display dhcp ?` | user | ✅ | `client`, `configuration`, `option`, `option82`, `relay`, `server` (group), `snooping` (group), `static`, `statistics`. There is no top-level user-info keyword; anything about leased hostnames would sit under `server`. |
 | `display dhcp server ?` | user | ✅ | `configuration`, `database`, `group`, `statistics` — and nothing else. **This firmware exposes no DHCP hostnames** (no user-info), so option 12 cannot be used to identify a device; the MAC's OUI and the randomised-MAC bit are all the router offers. |
 | `local-user MAC12 ?` | aaa | ❓ | Would list the account attributes; asked but not run. |
+
+## 2.5 Application traffic policy (staff VLAN)
+
+The current staff policy is applied on an **interface**, not directly to the
+AAA group: `Vlanif20` has `traffic-policy STAFF-APPS inbound`; `grp_staff`
+has `acl-id 3020`. Keep the two layers separate in the UI and in any rollback.
+
+| Command | View | Status | Reply / notes |
+|---|---|---|---|
+| `display current-configuration \| include traffic-policy` | user | ✅ | `traffic-policy STAFF-APPS inbound`. |
+| `display current-configuration \| include traffic classifier` | user | ✅ | Lists ST01–ST20 and their `operator and\|or`. |
+| `traffic classifier NAME` | system | ✅ | Enters `[HOST-classifier-NAME]`; NAME is `STRING<1-31>`. Existing names are reopened, a new name creates its definition. |
+| `if-match application SIGNATURE` | classifier | ✅ | Adds a signature to the classifier. `if-match application ?` exposes the router's full local signature catalogue (6,000+ entries); do not paste this response into a terminal. |
+| `undo if-match application SIGNATURE` | classifier | ❓ | The device's help confirms the `undo if-match application` branch, but the exact removal has not been run against a live policy because it would briefly allow the application. |
+| `traffic policy NAME` | system | ✅ | Enters `[HOST-trafficpolicy-NAME]`. |
+| `classifier NAME behavior BLOCK precedence N` | traffic policy | ✅ | Associates a classifier with a behaviour; `precedence` is optional and the existing staff entries use explicit values. |
+| `undo classifier NAME` | traffic policy | ✅ | Removes that classifier from the policy. Tested on ST18, immediately restored with `classifier ST18 behavior BLOCK precedence 18`; no save was sent. It removes the entire classifier association, so every signature inside it is affected. |
+| `undo traffic classifier NAME` | system | ❓ | The device help accepts one classifier name, but deletion has not been run on a live classifier. |
+
+**Terminal safety:** `classifier ST18 behavior BLOCK ?` advertises `<cr>`, so
+the subsequent newline executes the existing command. Likewise `undo
+classifier ST18 ?` executes the removal. Never use `?` after a syntactically
+complete policy command; query only incomplete stems and check the live config
+after any accidental execution.
 
 ## 3. Internet lines: interfaces, routes, NQA
 
@@ -146,7 +170,20 @@ routes share the load.
 > probe is withdrawn within about a minute. There is one probe per route; probes cannot be
 > combined. Tested 2026-09-14; see [lessons-learned.md](lessons-learned.md#L3).
 
-## 4. Management access for one device (DHCP binding, static ARP, ACL, web)
+## 4. Static port forwarding (NAT)
+
+| Command | View | Status | Reply / notes |
+|---|---|---|---|
+| `display nat static` | user | ✅ | One block per WAN interface. Each rule exposes `Global IP/Port : current-interface/PORT (Real IP : WAN_IP)`, `Inside IP/Port : IP/PORT`, and `Protocol : 6(tcp)`. See [capture](captures/07-static-nat.txt). |
+| `display ip routing-table A.B.C.D` | user | ✅ | Shows the matching route. The application uses it only to reject an internal target with no known route. |
+| `interface GigabitEthernet0/0/8` | system | ✅ | Enters the WAN2 interface view. |
+| `nat static protocol tcp global current-interface 65010 inside 10.0.20.210 4370` | WAN interface | ✅ | Silent on success. It created `TCP 192.168.2.250:65010 → 10.0.20.210:4370`; confirm with `display nat static`. |
+| `undo nat static protocol tcp global current-interface PORT inside IP PORT` | WAN interface | ❓ | The device help confirms this exact TCP removal grammar, including the inside port. An omitted inside port returned `Error: The NAT does not exist.` for the recorded rule; a successful production deletion has not been run solely for testing. The app immediately rereads `display nat static` and restores the old rule if an edit's replacement cannot be confirmed. |
+
+The NAT UI intentionally offers **TCP only** for now. TCP is verified above; UDP and ranges have
+not been captured from this AR730 and must not be guessed in production.
+
+## 5. Management access for one device (DHCP binding, static ARP, ACL, web)
 
 ### Reading
 
@@ -186,7 +223,7 @@ routes share the load.
 SSH is limited by `acl 2999 inbound` under `user-interface vty`. Management ACLs match source IP
 only, which is why a device is pinned by DHCP binding + static ARP (anti-spoofing) and not by MAC.
 
-## 5. VLANs and their clients
+## 6. VLANs and their clients
 
 All read-only. Captured 2026-09-17 in `captures/05-vlan-clients.txt`.
 
@@ -204,7 +241,19 @@ All read-only. Captured 2026-09-17 in `captures/05-vlan-clients.txt`.
 | `display ip pool interface Vlanif10 used`, pool **empty** | ✅ | The reply **stops after `Address Statistic`**: with `Used : 0` there is no `Network section` block and no lease table at all. Absence of the table means "no leases", not a malformed reply. |
 | `display ip pool interface Vlanif1 used` | ✅ | Same shape as `Vlanif20`. Note `Disabled : 232` — addresses excluded from the pool count as neither used nor idle. |
 
-## 6. Portal local server and SFTP
+### DHCP allocation changes
+
+| Command | View | Status | Reply / notes |
+|---|---|---|---|
+| `dhcp server excluded-ip-address START END` | Routed interface | ✅ | If an address is currently used or in conflict, asks `Warning: The address is in used or conflict state. Are you sure to continue excluding the address?[Y/N]:`. Answer `Y`; successful reply: `Info: The operation may take a few seconds. Please wait for a moment.done.` The new interval appears in `display current-configuration interface IFACE`. Matching dynamic leases become disabled in `display ip pool interface IFACE used`; its `Disabled` count rises. See [sanitised capture](captures/08-dhcp-pool-control.txt). |
+| `reset ip pool interface IFACE OLD_IP` | user | ✅ | A Y/N confirmation releases a dynamic lease before adding a static DHCP binding for the same MAC. The application sends this only after identifying that MAC's current DHCP lease. |
+
+> **Safe client migration:** a manually configured address is not a DHCP lease and can be absent
+> from `display ip pool … used`. Do not cut every client in a newly excluded range. The application
+> snapshots matching DHCP leases first, then offers to cut only MACs that also have an active
+> `access-user` session; this is what causes those clients to request a replacement address.
+
+## 7. Portal local server and SFTP
 
 | Command | View | Status | Reply / notes |
 |---|---|---|---|

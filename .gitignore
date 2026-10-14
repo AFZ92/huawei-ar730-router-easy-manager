@@ -3,11 +3,20 @@
 # and a full transcript of the router session. They must never be committed.
 ar730_settings.json
 ar730_devices.json
+ar730_devices.json.bak
+backups/
+.ar730-*.tmp
 ar730_session.log
+# Local-only credentials and transcripts used by the interactive Codex/router bridge.
+# Never add these files to Git or attach them to a support ticket.
+router_agent.local.json
+router_agent_sessions.jsonl
 demo_settings.json
 demo_devices.json
+demo_devices.json.bak
 demo_session.log
 firebase_service_account.json
+firebase_service_account.json.importing
 *-firebase-adminsdk-*.json
 
 # ---- Python ------------------------------------------------------------------

@@ -9,11 +9,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Settings sidebar button now appears directly above Guide & Support in both languages.
+
+- Firebase primary now synchronizes Qt saves and other devices' changes automatically, with
+  startup hydration, five-second polling, offline retry and a durable local acknowledgement.
+  Conditional Firestore writes merge concurrent edits, preserve deletion markers and keep
+  immutable recovery snapshots of both inputs and results. Local data and settings use atomic
+  flushed writes. Same-field conflicts retain the cloud value and archive the alternate value.
+  The destructive upload/download workflow has been replaced by a single safe synchronization
+  action and a visible status indicator; all devices must update to use these safeguards.
+
+- The router connection dialog now places keyboard focus directly in the password field when it opens.
+
 - Qt is now the sole desktop interface and the default for all launchers, builds and demo mode.
   The migration gate, handoff documents and Tkinter-only harnesses were removed; the retained
   AR730 engine continues to provide protocol validation and the offline router simulator.
 
+- The DHCP range-exclusion and IP-to-MAC binding controls remain clickable when the selected
+  network is not DHCP-capable. They now explain the missing network/DHCP prerequisite instead of
+  appearing silently disabled; all router-side validation and write safeguards remain unchanged.
+
+- Permission Groups no longer presents an interface-bound application policy as though it were
+  assigned to an unrelated AAA group. It selects the matching access interface from its gateway
+  description when available, shows groups with no inbound policy as having no application blocks,
+  and disables policy changes outside the selected group's network scope.
+
+### Removed
+
+- The Camera Network Agent page and its dedicated VLAN-analysis workflow were removed from the
+  desktop application.
+
 ### Added
+
+- **Port Forwarding (Static NAT)**: selected TCP forwarding rules can now be edited or deleted
+  from the Qt page. Each action rereads the router to confirm the result; editing validates the
+  replacement before removal and restores the original rule if the replacement cannot be created
+  or confirmed.
+
+- **Application policy review**: Permission Groups now presents the actual AR730
+  access layers side by side: the selected user-group ACL, each inbound
+  interface traffic-policy, application classifiers, behaviours and precedence.
+  Operators can search WhatsApp components, Meta apps, video apps and common
+  VPN signatures, inspect the exact blocking classifier, and copy a policy
+  report. A default-deny ACL is called out explicitly so "not blocked by this
+  policy" is never mistaken for application access being granted. A confirmed
+  block creates one dedicated classifier per signature; a confirmed allow
+  removes only its policy association and shows every co-hosted signature that
+  would be unblocked. Every action rereads the router before optional automatic
+  saving; an unverified classifier deletion is never used.
+
+- **Port Forwarding (Static NAT)**: a dedicated Qt page lists live static NAT rules and adds a
+  verified TCP mapping through a selected physical WAN interface. The workflow validates IPs and
+  ports, blocks a duplicate external port, rejects targets on the WAN subnet, checks the route to
+  the internal device, rereads the router to verify the new rule, and saves it when automatic
+  configuration saving is enabled. TCP is the only protocol offered until UDP syntax is captured
+  from the production AR730.
+
+- Local AI/router bridge: an ignored, permission-checked local credential file and a Unix-socket
+  service can keep one interactive AR730 SSH session open for an operator/agent. It records a
+  redacted JSONL command and reply transcript, starts read-only, and requires both a local
+  `allow_write` setting and an explicit write request before forwarding a configuration command.
 
 - Qt now exposes the remaining production pages: Management Devices, Internet Lines,
   Permission Groups, Settings/Firebase and the masked command log. The new controls use the
@@ -139,6 +194,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   counting the addresses actually available (total minus the range excluded with
   `excluded-ip-address`) rather than the nominal size of the subnet. Nothing is changed on the
   router; the result stays on screen for every network you select afterwards.
+
+- **Network DHCP controls** in the same tab: the selected network now reports whether its routed
+  interface actually enables local DHCP and lists its excluded address intervals. Operators can
+  exclude a verified in-subnet range, with an opt-in session cut limited to active MACs that
+  exactly matched a DHCP lease before the change; manually static devices are never selected for
+  that cut. A selected MAC can also receive a verified DHCP static binding: the application
+  rejects excluded, conflicting, or out-of-network addresses, releases that MAC's old dynamic
+  lease when necessary, rereads the router to confirm the binding, and adds neither static ARP
+  nor management ACL access.
 
 - **Change & Apply Password** (Settings tab): changes the shared MAC password in
   `mac-access-profile` and in every MAC account in one operation, unblocks blocked accounts,

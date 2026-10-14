@@ -36,12 +36,16 @@ import zlib
 import copy
 import shutil
 import base64
+import hashlib
+import tempfile
+import uuid
 import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
 
 from release_update import apply_windows_update, check_for_update, launch_update
+from firebase_merge import META_KEY, database as shared_database, validate as validate_firebase_state
 
 try:
     from cryptography.hazmat.primitives import hashes, serialization
@@ -1468,6 +1472,25 @@ class RouterSession(object):
                 pass
         return res
 
+    # -- التحويل الثابت للمنافذ (Static NAT) --------------------------------
+
+    def read_static_nat(self):
+        """قواعد التحويل الحالية وواجهات WAN الفيزيائية ذات العنوان.
+
+        لا نعرض Vlanif كوجهة خارجية محتملة. في جهاز AR730 المدار هنا خطوط
+        الإنترنت هي واجهات GigabitEthernet ذات العنوان، ومنها WAN1–WAN3.
+        """
+        rules = parse_static_nat(self.send("display nat static", timeout=40))
+        interfaces = [row for row in parse_ip_brief(
+            self.send("display ip interface brief", timeout=30))
+            if row["iface"].startswith("GigabitEthernet")]
+        known = {row["iface"] for row in interfaces}
+        for rule in rules:
+            if rule["interface"] and rule["interface"] not in known:
+                interfaces.append({"iface": rule["interface"], "ip": rule["wan_ip"],
+                                   "len": 0, "phy": "", "proto": ""})
+        return rules, interfaces
+
     # -- خطوط الإنترنت -------------------------------------------------------
 
     def read_wan_lines(self, withdrawn=None, live_ping=True):
@@ -1634,15 +1657,20 @@ class RouterSession(object):
             v["len"] = n.get("len", 0)
         return vlans
 
-    def read_vlan_clients(self, vid, iface=""):
+    def read_vlan_clients(self, vid, iface="", mac_rows=None, online=None):
         """
         من على الشبكة vid. كل الأوامر للقراءة فقط.
         الأساس جدول العناوين الفيزيائية لأنه يرى الجهاز الذي لم يأخذ عنواناً،
         ثم نُثريه بـARP وعقود DHCP وجلسات المصادقة حين تكون للشبكة واجهة.
         """
         st = {"vid": str(vid), "iface": iface, "desc": "", "ports": [],
-              "pool": None, "rows": [], "nac": False}
-        mac_rows = parse_mac_table(self.send("display mac-address", timeout=90))
+              "pool": None, "rows": [], "nac": False, "dhcp": False,
+              "excluded": [], "binds": [], "leases": {}, "arp": {}, "online": {}}
+        # The full forwarding table is expensive on a busy router, so the
+        # single-VLAN view reads it only when a caller has not supplied a
+        # snapshot for this particular request.
+        if mac_rows is None:
+            mac_rows = parse_mac_table(self.send("display mac-address", timeout=90))
         st["ports"] = parse_vlan_ports(self.send("display vlan %s" % vid, timeout=30))
         arp, leases = {}, {}
         if iface:
@@ -1651,15 +1679,21 @@ class RouterSession(object):
             st["desc"] = m.group(1) if m else ""
             # بلا authentication-profile لا جلسة للجهاز، فلا شيء يُقطع
             st["nac"] = parse_interface_nac(cfg)
+            dhcp_config = parse_dhcp_interface_config(cfg)
+            st["dhcp"], st["excluded"] = dhcp_config["enabled"], dhcp_config["excluded"]
+            st["binds"] = parse_static_binds(cfg)
             arp = parse_arp_table(self.send("display arp interface %s" % iface, timeout=40))
-            pool = self.send("display ip pool interface %s used" % iface, timeout=60)
-            st["pool"] = parse_pool_stats(pool)
-            leases = parse_pool_leases(pool)
-        online = {}
-        for r in parse_online(self.read_online()):
-            mac12 = normalize_mac(r["mac"]) if r["mac"] else None
-            if mac12:
-                online[mac12] = r
+            if st["dhcp"]:
+                pool = self.send("display ip pool interface %s used" % iface, timeout=60)
+                st["pool"] = parse_pool_stats(pool)
+                leases = parse_pool_leases(pool)
+        if online is None:
+            online = {}
+            for r in parse_online(self.read_online()):
+                mac12 = normalize_mac(r["mac"]) if r["mac"] else None
+                if mac12:
+                    online[mac12] = r
+        st["leases"], st["arp"], st["online"] = leases, arp, online
         st["rows"] = vlan_clients(mac_rows, arp, leases, online, vid)
         return st
 
@@ -1934,6 +1968,148 @@ def parse_groups(group_output, acl_output):
     return groups
 
 
+def parse_application_policy_config(output):
+    """Parse the access-control pieces relevant to application filtering.
+
+    VRP keeps the user-group ACL, application classifiers, traffic behaviours,
+    policies and interface bindings in one configuration stream.  This reader
+    intentionally preserves that separation: an ACL belongs to a user group,
+    while a traffic policy belongs to an interface.  Treating either as the
+    other was the source of several hard-to-explain access rules in production.
+
+    The result is deliberately read-only and tolerant of unrelated VRP views so
+    callers can use the normal ``display current-configuration`` response.
+    """
+    state = {
+        "acls": {}, "classifiers": {}, "behaviors": {}, "policies": {},
+        "interfaces": {},
+    }
+    view, current = "", ""
+    for raw in (output or "").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped == "#":
+            view, current = "", ""
+            continue
+
+        match = re.match(r"^acl number (\d+)\s*$", stripped)
+        if match:
+            current = match.group(1)
+            view = "acl"
+            state["acls"].setdefault(current, {"rules": [], "default_deny": False})
+            continue
+        if view == "acl":
+            match = re.match(r"^rule (\d+) (permit|deny)(?: (.*))?$", stripped, re.I)
+            if match:
+                rule = {"id": int(match.group(1)), "action": match.group(2).lower(),
+                        "match": (match.group(3) or "").strip()}
+                state["acls"][current]["rules"].append(rule)
+                if rule["action"] == "deny" and rule["id"] >= 3000:
+                    state["acls"][current]["default_deny"] = True
+                continue
+
+        match = re.match(r"^traffic classifier (\S+)(?: operator (\S+))?\s*$", stripped, re.I)
+        if match:
+            current, view = match.group(1), "classifier"
+            state["classifiers"].setdefault(current, {
+                "operator": (match.group(2) or "and").lower(), "applications": []})
+            continue
+        if view == "classifier":
+            match = re.match(r"^if-match application(?: name)? (\S+)\s*$", stripped, re.I)
+            if match:
+                apps = state["classifiers"][current]["applications"]
+                if match.group(1) not in apps:
+                    apps.append(match.group(1))
+                continue
+
+        match = re.match(r"^traffic behavior (\S+)\s*$", stripped, re.I)
+        if match:
+            current, view = match.group(1), "behavior"
+            state["behaviors"].setdefault(current, {"action": "unknown"})
+            continue
+        if view == "behavior" and stripped.lower() in {"deny", "permit"}:
+            state["behaviors"][current]["action"] = stripped.lower()
+            continue
+
+        match = re.match(r"^traffic policy (\S+)\s*$", stripped, re.I)
+        if match:
+            current, view = match.group(1), "policy"
+            state["policies"].setdefault(current, [])
+            continue
+        if view == "policy":
+            match = re.match(r"^classifier (\S+) behavior (\S+)(?: precedence (\d+))?\s*$",
+                             stripped, re.I)
+            if match:
+                state["policies"][current].append({
+                    "classifier": match.group(1), "behavior": match.group(2),
+                    "precedence": int(match.group(3) or 0)})
+                continue
+
+        match = re.match(r"^interface (\S+)\s*$", stripped, re.I)
+        if match:
+            current, view = match.group(1), "interface"
+            state["interfaces"].setdefault(current, {
+                "inbound_policy": "", "description": "", "nac": False,
+            })
+            continue
+        if view == "interface":
+            match = re.match(r"^description\s+(.+)$", stripped, re.I)
+            if match:
+                state["interfaces"][current]["description"] = match.group(1).strip()
+                continue
+            if re.match(r"^authentication-profile\s+\S+\s*$", stripped, re.I):
+                state["interfaces"][current]["nac"] = True
+                continue
+            match = re.match(r"^traffic-policy (\S+) inbound\s*$", stripped, re.I)
+            if match:
+                state["interfaces"][current]["inbound_policy"] = match.group(1)
+    return state
+
+
+def application_policy_rows(config, policy_name, acl_no=""):
+    """Return one row per known application signature for a policy review UI.
+
+    A signature absent from a deny classifier is *not* called "allowed": a
+    default-deny ACL can still stop it before the traffic policy sees it.  The
+    UI uses this distinction to prevent an operator from believing that adding
+    WhatsApp to a classifier alone grants WhatsApp media access.
+    """
+    config = config or {}
+    policy_entries = (config.get("policies") or {}).get(policy_name, [])
+    classifiers = config.get("classifiers") or {}
+    behaviors = config.get("behaviors") or {}
+    denied = {}
+    for entry in policy_entries:
+        behavior = behaviors.get(entry.get("behavior"), {})
+        if behavior.get("action") != "deny":
+            continue
+        classifier = classifiers.get(entry.get("classifier"), {})
+        for application in classifier.get("applications", []):
+            denied.setdefault(application, []).append({
+                "classifier": entry.get("classifier", ""),
+                "precedence": entry.get("precedence", 0),
+            })
+    acl = (config.get("acls") or {}).get(str(acl_no), {})
+    default_deny = bool(acl.get("default_deny"))
+    applications = sorted(set(denied) | {
+        "WhatsAPP", "WhatsAPP_FileTransfer", "WhatsAPP_VoIP", "WhatsAPP_Web",
+        "Facebook", "Instagram", "Threads", "TikTok", "Youtube", "YouTube_Music",
+        "YouTube_Kids", "OpenVPN", "WireGuardVPN", "NordVPN", "ExpressVPN",
+        "ProtonVPN", "Shadowsocks",
+    }, key=str.lower)
+    rows = []
+    for application in applications:
+        matches = denied.get(application, [])
+        if matches:
+            state = "blocked"
+        elif default_deny:
+            state = "acl-dependent"
+        else:
+            state = "not-blocked"
+        rows.append({"application": application, "state": state,
+                     "rules": matches, "acl_default_deny": default_deny})
+    return rows
+
+
 def parse_online(output):
     """
     يحلل جدول display access-user.
@@ -2110,6 +2286,54 @@ def parse_ip_brief(output):
             rows.append({"iface": m.group(1), "ip": m.group(2), "len": int(m.group(3)),
                          "phy": m.group(4), "proto": m.group(5)})
     return rows
+
+
+def valid_port(value):
+    """منفذ TCP/UDP صالح بصيغة VRP، من 1 إلى 65535."""
+    try:
+        return 1 <= int(str(value).strip()) <= 65535
+    except (TypeError, ValueError):
+        return False
+
+
+def parse_static_nat(output):
+    """يحلل ``display nat static`` كما يظهر على AR730.
+
+    كل كتلة تبدأ بسطر Interface ثم Global IP/Port وInside IP/Port وProtocol.
+    لا نفترض عنواناً عاماً ثابتاً؛ فـ ``current-interface`` هو الصيغة التي
+    يستخدمها هذا الراوتر على كل خطوط WAN.
+    """
+    rules, iface, current = [], "", None
+
+    def finish():
+        if current and current.get("external_port") and current.get("inside_ip"):
+            rules.append(current)
+
+    for line in (output or "").splitlines():
+        m = re.match(r"^\s*Interface\s*:\s*(\S+)", line)
+        if m:
+            finish()
+            iface, current = m.group(1), None
+            continue
+        m = re.match(r"^\s*Global IP/Port\s*:\s*(\S+)/(\d+)(?: \(Real IP : (%s)\))?" % _IP_RE,
+                     line)
+        if m:
+            finish()
+            current = {"interface": iface, "global": m.group(1),
+                       "external_port": int(m.group(2)), "wan_ip": m.group(3) or "",
+                       "inside_ip": "", "inside_port": 0, "protocol": ""}
+            continue
+        if current is None:
+            continue
+        m = re.match(r"^\s*Inside IP/Port\s*:\s*(%s)/(\d+)" % _IP_RE, line)
+        if m:
+            current["inside_ip"], current["inside_port"] = m.group(1), int(m.group(2))
+            continue
+        m = re.match(r"^\s*Protocol\s*:\s*\d+\((\w+)\)", line)
+        if m:
+            current["protocol"] = m.group(1).lower()
+    finish()
+    return rules
 
 
 def _vrp_time(text):
@@ -2446,6 +2670,45 @@ def parse_static_binds(output):
             binds.append({"ip": m.group(1), "mac": normalize_mac(m.group(2)),
                           "desc": m.group(3) or ""})
     return binds
+
+
+def parse_dhcp_excluded_ranges(output):
+    """Ranges explicitly withheld from an interface DHCP pool."""
+    ranges = []
+    for m in re.finditer(r"^\s*dhcp server excluded-ip-address (%s)(?: (%s))?\s*$"
+                         % (_IP_RE, _IP_RE), output or "", re.M):
+        start, end = m.group(1), m.group(2) or m.group(1)
+        if _ip_int(start) <= _ip_int(end):
+            ranges.append({"start": start, "end": end})
+    return sorted(ranges, key=lambda item: (_ip_int(item["start"]), _ip_int(item["end"])))
+
+
+def parse_dhcp_interface_config(output):
+    """The DHCP facts that are safe to infer from one routed-interface config."""
+    return {
+        "enabled": bool(re.search(r"^\s*dhcp select interface\s*$", output or "", re.M)),
+        "excluded": parse_dhcp_excluded_ranges(output),
+    }
+
+
+def ip_in_ranges(ip, ranges):
+    """Whether an address is inside one of the inclusive DHCP exclusion ranges."""
+    if not valid_ip(ip):
+        return False
+    value = _ip_int(ip)
+    return any(_ip_int(item["start"]) <= value <= _ip_int(item["end"])
+               for item in ranges or [])
+
+
+def range_contains(outer_start, outer_end, inner_start, inner_end):
+    return (_ip_int(outer_start) <= _ip_int(inner_start)
+            and _ip_int(inner_end) <= _ip_int(outer_end))
+
+
+def ranges_overlap(first_start, first_end, second_start, second_end):
+    """Whether two inclusive IPv4 ranges share at least one address."""
+    return not (_ip_int(first_end) < _ip_int(second_start)
+                or _ip_int(second_end) < _ip_int(first_start))
 
 
 def parse_arp_static(output):
@@ -2902,6 +3165,13 @@ FIREBASE_LOCAL_KEYS = set(("firebase_api_key", "firebase_project_id",
                            "firebase_pending_sync", "storage_mode"))
 
 
+class FirebaseRequestError(RuntimeError):
+    def __init__(self, status_code, message, status=""):
+        super().__init__(message)
+        self.status_code = status_code
+        self.status = status
+
+
 class FirebaseSync(object):
     """مخزن Firestore اختياري، يبقي ملف JSON المحلي هو النسخة العاملة دائماً."""
 
@@ -2912,6 +3182,8 @@ class FirebaseSync(object):
     def __init__(self, settings):
         self.settings = settings
         self._service_account_data = None
+        self._cached_token = None
+        self._token_expires = 0
 
     def configured(self):
         if self.settings.get("firebase_service_account_file"):
@@ -2987,7 +3259,15 @@ class FirebaseSync(object):
         try:
             with urllib.request.urlopen(req, timeout=12) as response:
                 return json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
+        except urllib.error.HTTPError as exc:
+            try:
+                status = json.loads(exc.read().decode("utf-8")).get("error", {}).get("status", "")
+            except (ValueError, OSError):
+                status = ""
+            if exc.code == 401:
+                self._cached_token = None
+            raise FirebaseRequestError(exc.code, "Firebase HTTP %s %s" % (exc.code, status), status) from exc
+        except (urllib.error.URLError, ValueError) as exc:
             raise RuntimeError("Firebase: %s" % exc)
 
     def _form_request(self, url, payload):
@@ -3034,14 +3314,19 @@ class FirebaseSync(object):
         return token
 
     def _token(self):
+        if self._cached_token and time.monotonic() < self._token_expires:
+            return self._cached_token
         if self.settings.get("firebase_service_account_file"):
-            return self._service_account_token(self._service_account())
-        key = urllib.parse.quote(self.settings["firebase_api_key"], safe="")
-        return self._request("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + key,
-                             method="POST", payload={
-                                 "email": self.settings["firebase_email"],
-                                 "password": self.settings["firebase_password"],
-                                 "returnSecureToken": True})["idToken"]
+            token = self._service_account_token(self._service_account())
+        else:
+            key = urllib.parse.quote(self.settings["firebase_api_key"], safe="")
+            token = self._request("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + key,
+                                 method="POST", payload={
+                                     "email": self.settings["firebase_email"],
+                                     "password": self.settings["firebase_password"],
+                                     "returnSecureToken": True})["idToken"]
+        self._cached_token, self._token_expires = token, time.monotonic() + 3000
+        return token
 
     def _url(self):
         project_id = self.settings.get("firebase_project_id", "")
@@ -3058,12 +3343,55 @@ class FirebaseSync(object):
         try:
             doc = self._request(self._url(), token=self._token())
         except RuntimeError as exc:
-            if "HTTP Error 404" in str(exc):
+            if getattr(exc, "status_code", None) == 404:
                 return None
             raise
         fields = doc.get("fields", {})
         state = self._value(fields.get("state", {})) if fields.get("state") else None
-        return state if isinstance(state, dict) else None
+        validate_firebase_state(state)
+        state["_update_time"] = doc.get("updateTime")
+        return state
+
+    def archive(self, state):
+        """Immutable, content-addressed recovery snapshots; never prune automatically."""
+        clean = validate_firebase_state(state)
+        encoded = json.dumps(clean, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        revision = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        root = self._url().rsplit("/", 2)[0]
+        url = root + "/ar730_manager_revisions/" + revision
+        try:
+            existing = self._request(url, token=self._token())
+        except FirebaseRequestError as exc:
+            if exc.status_code != 404:
+                raise
+        else:
+            if self._value(existing.get("fields", {}).get("state", {})) != clean:
+                raise RuntimeError("Firebase recovery snapshot mismatch; write refused.")
+            return
+        try:
+            self._request(url + "?currentDocument.exists=false", method="PATCH", token=self._token(),
+                          payload={"fields": {"state": self._field(clean)}})
+        except FirebaseRequestError as exc:
+            if exc.status_code not in (403, 409, 412) and exc.status not in ("ALREADY_EXISTS", "FAILED_PRECONDITION"):
+                raise
+            # Firebase Auth rules may classify a raced create as a forbidden
+            # update. Accept it only after reading the exact immutable snapshot.
+            existing = self._request(url, token=self._token())
+            if self._value(existing.get("fields", {}).get("state", {})) != clean:
+                raise RuntimeError("Firebase recovery snapshot mismatch; write refused.") from exc
+
+    def commit(self, state, expected_update_time):
+        clean = validate_firebase_state(state)
+        self.archive(clean)
+        clean["schema_version"] = 2
+        clean["saved_at"] = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        condition = ({"currentDocument.updateTime": expected_update_time}
+                     if expected_update_time else {"currentDocument.exists": "false"})
+        condition["updateMask.fieldPaths"] = "state"
+        url = self._url() + "?" + urllib.parse.urlencode(condition)
+        self._request(url, method="PATCH", token=self._token(),
+                      payload={"fields": {"state": self._field(clean)}})
+        return clean["saved_at"]
 
     @classmethod
     def db_has_content(cls, db_data):
@@ -3092,14 +3420,31 @@ class FirebaseSync(object):
     def push(self, db_data):
         if not self.configured():
             return None
-        # لا تُرفع بيانات دخول Firebase ولا كلمة مرور MAC المشتركة إلى السحابة.
-        shared_settings = {k: copy.deepcopy(v) for k, v in self.settings.items()
-                           if k not in FIREBASE_LOCAL_KEYS and k != "mac_shared_password"}
-        state = {"saved_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                 "settings": shared_settings, "db": copy.deepcopy(db_data)}
-        self._request(self._url(), method="PATCH", token=self._token(),
-                      payload={"fields": {"state": self._field(state)}})
-        return state["saved_at"]
+        # Compatibility for older callers: even a requested upload merges and
+        # uses a Firestore revision precondition, never an unconditional PATCH.
+        from firebase_merge import snapshot, synchronize
+        return synchronize(self, snapshot(db_data, self.settings))["saved_at"]
+
+def atomic_json_write(path, data):
+    """Flush to a private temporary file before replacing the acknowledged copy."""
+    fd, temporary = tempfile.mkstemp(prefix=".ar730-", suffix=".tmp",
+                                     dir=os.path.dirname(os.path.abspath(path)))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        if os.name != "nt":
+            directory = os.open(os.path.dirname(os.path.abspath(path)), os.O_RDONLY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
 
 class LocalDB(object):
     def __init__(self, path=None, on_save=None):
@@ -3113,26 +3458,28 @@ class LocalDB(object):
             try:
                 with open(self.path, "r", encoding="utf-8") as f:
                     loaded = json.load(f)
-                for k in ("devices", "portal", "mgmt", "names", "history"):
-                    if k in loaded:
-                        self.data[k] = loaded[k]
-            except Exception:
-                pass
+                self.data = shared_database(loaded)
+                if META_KEY in loaded:
+                    self.data[META_KEY] = loaded[META_KEY]
+            except (OSError, ValueError, TypeError) as exc:
+                raise RuntimeError("Local database cannot be read; original file preserved: " + self.path) from exc
 
     def save(self):
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, self.path)
+        # A complete previous version survives interruptions and accidental edits.
+        if os.path.exists(self.path):
+            with open(self.path, encoding="utf-8") as handle:
+                previous = json.load(handle)
+            atomic_json_write(self.path + ".bak", previous)
+        atomic_json_write(self.path, self.data)
         if self.on_save:
             self.on_save()
 
     def log(self, action, target, detail=""):
         self.data["history"].append({
+            "id": uuid.uuid4().hex,
             "when": now_stamp(), "action": action,
             "target": target, "detail": detail,
         })
-        self.data["history"] = self.data["history"][-2000:]
         self.save()
 
     # -- الأجهزة -------------------------------------------------------------
@@ -3267,6 +3614,378 @@ class ActionResult(object):
         self.error = error
 
 
+class ApplicationPolicyOperations(object):
+    """Small, verified operations for application deny rules on an AR730.
+
+    A traffic policy is an interface policy.  These methods therefore receive
+    its name explicitly and never pretend that a user-group ACL is the policy.
+    Unblocking deliberately removes only the policy association: the classifier
+    definition is retained, avoiding an unverified destructive ``undo traffic
+    classifier`` and making rollback one known command.
+    """
+    _NAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,31}$")
+
+    def __init__(self, router, auto_save=True):
+        self.router = router
+        self.auto_save = bool(auto_save)
+
+    def _read(self):
+        return parse_application_policy_config(self.router.read_group_acls())
+
+    @staticmethod
+    def _policy_entry(config, policy, classifier):
+        return next((entry for entry in (config.get("policies") or {}).get(policy, [])
+                     if entry.get("classifier") == classifier), None)
+
+    @staticmethod
+    def _blocked_matches(config, policy, application):
+        matches = []
+        for entry in (config.get("policies") or {}).get(policy, []):
+            if (config.get("behaviors") or {}).get(entry.get("behavior"), {}).get("action") != "deny":
+                continue
+            apps = (config.get("classifiers") or {}).get(entry.get("classifier"), {}).get("applications", [])
+            if application in apps:
+                matches.append(entry)
+        return matches
+
+    def block(self, policy, application):
+        policy, application = (policy or "").strip(), (application or "").strip()
+        if not policy or not self._NAME_RE.match(application):
+            return ActionResult(False, "bad_application")
+        try:
+            before = self._read()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        if policy not in (before.get("policies") or {}):
+            return ActionResult(False, "missing_policy")
+        if self._blocked_matches(before, policy, application):
+            return ActionResult(False, "already_blocked")
+        behavior = next((name for name, data in (before.get("behaviors") or {}).items()
+                         if data.get("action") == "deny"), "")
+        if not behavior:
+            return ActionResult(False, "missing_deny_behavior")
+        classifier = "APP_%08x" % (zlib.crc32(application.encode("utf-8")) & 0xffffffff)
+        existing = (before.get("classifiers") or {}).get(classifier)
+        if existing and existing.get("applications") != [application]:
+            return ActionResult(False, "classifier_conflict")
+        precedence = max([int(item.get("precedence") or 0)
+                          for item in (before.get("policies") or {}).get(policy, [])] or [0]) + 1
+        created = existing is None
+        try:
+            self.router.send("return")
+            self.router.send("system-view")
+            if created:
+                self.router.send("traffic classifier %s operator or" % classifier)
+                error = first_error(self.router.send("if-match application %s" % application))
+                self.router.send("quit")
+                if error:
+                    return ActionResult(False, "router_error", error=error)
+            self.router.send("traffic policy %s" % policy)
+            error = first_error(self.router.send(
+                "classifier %s behavior %s precedence %d" % (classifier, behavior, precedence)))
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        finally:
+            try:
+                self.router.send("return")
+            except Exception:
+                pass
+        if error:
+            return ActionResult(False, "router_error", error=error)
+        try:
+            after = self._read()
+        except Exception as exc:
+            return ActionResult(False, "not_confirmed", error=str(exc))
+        if not self._blocked_matches(after, policy, application):
+            # The policy association is the live effect; it has a tested undo.
+            try:
+                self.router.send("system-view")
+                self.router.send("traffic policy %s" % policy)
+                self.router.send("undo classifier %s" % classifier)
+                self.router.send("return")
+            except Exception:
+                pass
+            return ActionResult(False, "not_confirmed")
+        if self.auto_save:
+            try:
+                if not self.router.save_config():
+                    return ActionResult(False, "save_failed", data={"classifier": classifier})
+            except Exception as exc:
+                return ActionResult(False, "save_failed", data={"classifier": classifier}, error=str(exc))
+        return ActionResult(True, "application_blocked",
+                            data={"classifier": classifier, "precedence": precedence})
+
+    def allow(self, policy, application, allow_bundle=False):
+        policy, application = (policy or "").strip(), (application or "").strip()
+        try:
+            before = self._read()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        matches = self._blocked_matches(before, policy, application)
+        if not matches:
+            return ActionResult(False, "not_blocked")
+        affected = []
+        for entry in matches:
+            affected.extend((before.get("classifiers") or {}).get(
+                entry.get("classifier"), {}).get("applications", []))
+        affected = sorted(set(affected))
+        if len(affected) > 1 and not allow_bundle:
+            return ActionResult(False, "shared_classifier", data={"affected": affected, "matches": matches})
+        try:
+            self.router.send("return")
+            self.router.send("system-view")
+            self.router.send("traffic policy %s" % policy)
+            for entry in matches:
+                error = first_error(self.router.send("undo classifier %s" % entry["classifier"]))
+                if error:
+                    return ActionResult(False, "router_error", error=error)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        finally:
+            try:
+                self.router.send("return")
+            except Exception:
+                pass
+        try:
+            after = self._read()
+        except Exception as exc:
+            return ActionResult(False, "not_confirmed", error=str(exc))
+        if self._blocked_matches(after, policy, application):
+            # Restore every removed association from the captured pre-change data.
+            try:
+                self.router.send("system-view")
+                self.router.send("traffic policy %s" % policy)
+                for entry in matches:
+                    self.router.send("classifier %s behavior %s precedence %d" % (
+                        entry["classifier"], entry["behavior"], int(entry.get("precedence") or 0)))
+                self.router.send("return")
+            except Exception:
+                pass
+            return ActionResult(False, "not_confirmed")
+        if self.auto_save:
+            try:
+                if not self.router.save_config():
+                    return ActionResult(False, "save_failed", data={"affected": affected})
+            except Exception as exc:
+                return ActionResult(False, "save_failed", data={"affected": affected}, error=str(exc))
+        return ActionResult(True, "application_allowed", data={"affected": affected})
+
+
+class StaticNatOperations(object):
+    """إدارة تحويل TCP ثابت مع فحص المسار والتعارض ثم تحقق لاحق.
+
+    صيغة TCP فقط مقصودة: هي الصيغة الوحيدة التي جُرّبت وسُجل ردها على هذا
+    الإصدار من AR730. لا نخمن صيغة UDP أو قواعد النطاقات في جهاز إنتاجي.
+    """
+    def __init__(self, router, auto_save=True):
+        self.router = router
+        self.auto_save = bool(auto_save)
+
+    @staticmethod
+    def _same_rule(left, right):
+        """مقارنة هوية القاعدة، لا بيانات العرض المتغيرة مثل عنوان WAN."""
+        return bool(left and right and
+                    left.get("interface") == right.get("interface") and
+                    left.get("protocol", "").lower() == right.get("protocol", "").lower() and
+                    int(left.get("external_port") or 0) == int(right.get("external_port") or 0) and
+                    left.get("inside_ip") == right.get("inside_ip") and
+                    int(left.get("inside_port") or 0) == int(right.get("inside_port") or 0))
+
+    @staticmethod
+    def _rule(interface, external_port, inside_ip, inside_port):
+        return {"interface": interface, "protocol": "tcp",
+                "external_port": int(external_port), "inside_ip": inside_ip,
+                "inside_port": int(inside_port)}
+
+    def _validate_target(self, interface, external_port, inside_ip, inside_port,
+                         rules, interfaces, ignored=None):
+        interface, inside_ip = (interface or "").strip(), (inside_ip or "").strip()
+        if not interface:
+            return ActionResult(False, "missing_interface")
+        if not valid_port(external_port) or not valid_port(inside_port):
+            return ActionResult(False, "bad_port")
+        if not valid_ip(inside_ip):
+            return ActionResult(False, "bad_ip")
+        external_port, inside_port = int(external_port), int(inside_port)
+        wan = next((row for row in interfaces if row["iface"] == interface), None)
+        if wan is None:
+            return ActionResult(False, "missing_interface")
+        # عنوان الجهاز الداخلي على شبكة WAN نفسها ينتج مساراً غير متماثل.
+        if wan.get("ip") and wan.get("len") and ip_in_subnet(inside_ip, wan["ip"], wan["len"]):
+            return ActionResult(False, "inside_on_wan")
+        collision = next((rule for rule in rules
+                          if not self._same_rule(rule, ignored)
+                          and rule["interface"] == interface
+                          and rule["protocol"] == "tcp"
+                          and rule["external_port"] == external_port), None)
+        if collision:
+            candidate = self._rule(interface, external_port, inside_ip, inside_port)
+            if self._same_rule(collision, candidate):
+                return ActionResult(False, "duplicate", data={"rule": collision})
+            return ActionResult(False, "port_in_use", data={"rule": collision})
+        try:
+            route = self.router.send("display ip routing-table %s" % inside_ip, timeout=30)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        if "Summary Count : 0" in route:
+            return ActionResult(False, "no_route")
+        return ActionResult(True, "ready", data={"rule": self._rule(
+            interface, external_port, inside_ip, inside_port)})
+
+    def _run_interface_command(self, interface, command):
+        """تنفيذ أمر NAT واحد ثم العودة دائماً إلى وضع المستخدم."""
+        try:
+            self.router.send("return")
+            self.router.send("system-view")
+            self.router.send("interface %s" % interface)
+            return first_error(self.router.send(command, timeout=30))
+        finally:
+            try:
+                self.router.send("return")
+            except Exception:
+                pass
+
+    @staticmethod
+    def _create_command(rule):
+        global_target = rule.get("global") or "current-interface"
+        return ("nat static protocol tcp global %s %d inside %s %d" %
+                (global_target, rule["external_port"], rule["inside_ip"], rule["inside_port"]))
+
+    @staticmethod
+    def _delete_command(rule):
+        global_target = rule.get("global") or "current-interface"
+        return ("undo nat static protocol tcp global %s %d inside %s %d" %
+                (global_target, rule["external_port"], rule["inside_ip"], rule["inside_port"]))
+
+    def _restore(self, rule):
+        """أفضل محاولة لاسترجاع القاعدة القديمة؛ لا تحفظ إعدادات بدء التشغيل."""
+        try:
+            if self._run_interface_command(rule["interface"], self._create_command(rule)):
+                return False
+            rules, _interfaces = self.router.read_static_nat()
+            return any(self._same_rule(item, rule) for item in rules)
+        except Exception:
+            return False
+
+    def create(self, interface, external_port, inside_ip, inside_port):
+        try:
+            rules, interfaces = self.router.read_static_nat()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        checked = self._validate_target(interface, external_port, inside_ip, inside_port,
+                                        rules, interfaces)
+        if not checked.ok:
+            return checked
+        added = checked.data["rule"]
+        try:
+            error = self._run_interface_command(added["interface"], self._create_command(added))
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        if error:
+            return ActionResult(False, "router_error", error=error)
+        try:
+            after, _unused = self.router.read_static_nat()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        added = next((rule for rule in after if self._same_rule(rule, added)), None)
+        if not added:
+            return ActionResult(False, "not_confirmed")
+        if self.auto_save:
+            try:
+                if not self.router.save_config():
+                    return ActionResult(False, "save_failed", data={"rule": added})
+            except Exception as exc:
+                return ActionResult(False, "save_failed", data={"rule": added}, error=str(exc))
+        return ActionResult(True, "nat_added", data={"rule": added})
+
+    def delete(self, original):
+        """حذف قاعدة محددة فقط، ثم قراءة NAT للتأكد من اختفائها."""
+        try:
+            rules, _interfaces = self.router.read_static_nat()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        original = next((item for item in rules if self._same_rule(item, original)), None)
+        if not original:
+            return ActionResult(False, "missing_selection")
+        try:
+            error = self._run_interface_command(original["interface"], self._delete_command(original))
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        if error:
+            return ActionResult(False, "router_error", error=error)
+        try:
+            after, _interfaces = self.router.read_static_nat()
+        except Exception as exc:
+            return ActionResult(False, "not_confirmed", error=str(exc))
+        if any(self._same_rule(item, original) for item in after):
+            return ActionResult(False, "not_confirmed")
+        if self.auto_save:
+            try:
+                if not self.router.save_config():
+                    return ActionResult(False, "save_failed", data={"rule": original})
+            except Exception as exc:
+                return ActionResult(False, "save_failed", data={"rule": original}, error=str(exc))
+        return ActionResult(True, "nat_deleted", data={"rule": original})
+
+    def edit(self, original, interface, external_port, inside_ip, inside_port):
+        """استبدال قاعدة بعد التحقق؛ يعيد القديمة إذا لم يثبت البديل."""
+        try:
+            rules, interfaces = self.router.read_static_nat()
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        original = next((item for item in rules if self._same_rule(item, original)), None)
+        if not original:
+            return ActionResult(False, "missing_selection")
+        checked = self._validate_target(interface, external_port, inside_ip, inside_port,
+                                        rules, interfaces, ignored=original)
+        if not checked.ok:
+            return checked
+        replacement = checked.data["rule"]
+        # قواعد العنوان العام الثابت تظل على العنوان نفسه عند التحرير؛ قواعد
+        # التطبيق المنشأة حديثاً تستخدم current-interface كالمعتاد.
+        replacement["global"] = original.get("global") or "current-interface"
+        if self._same_rule(original, replacement):
+            return ActionResult(True, "unchanged", data={"rule": original})
+        try:
+            error = self._run_interface_command(original["interface"], self._delete_command(original))
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        if error:
+            return ActionResult(False, "router_error", error=error)
+        try:
+            after_delete, _interfaces = self.router.read_static_nat()
+        except Exception as exc:
+            return ActionResult(False, "edit_remove_not_confirmed", error=str(exc))
+        if any(self._same_rule(item, original) for item in after_delete):
+            return ActionResult(False, "edit_remove_not_confirmed")
+        try:
+            error = self._run_interface_command(replacement["interface"], self._create_command(replacement))
+        except Exception as exc:
+            error = str(exc)
+        if error:
+            restored = self._restore(original)
+            return ActionResult(False, "edit_rolled_back" if restored else "edit_rollback_failed",
+                                data={"rule": original}, error=error)
+        try:
+            after, _interfaces = self.router.read_static_nat()
+        except Exception as exc:
+            restored = self._restore(original)
+            return ActionResult(False, "edit_rolled_back" if restored else "edit_rollback_failed",
+                                data={"rule": original}, error=str(exc))
+        replaced = next((item for item in after if self._same_rule(item, replacement)), None)
+        if not replaced:
+            restored = self._restore(original)
+            return ActionResult(False, "edit_rolled_back" if restored else "edit_rollback_failed",
+                                data={"rule": original})
+        if self.auto_save:
+            try:
+                if not self.router.save_config():
+                    return ActionResult(False, "save_failed", data={"rule": replaced})
+            except Exception as exc:
+                return ActionResult(False, "save_failed", data={"rule": replaced}, error=str(exc))
+        return ActionResult(True, "nat_edited", data={"rule": replaced, "previous": original})
+
+
 class NetworkDeviceNameOperations(object):
     """الأسماء المحلية لأجهزة ظهرت في جدول الشبكات، بلا أثر على الراوتر.
 
@@ -3342,6 +4061,207 @@ class VlanSessionOperations(object):
         code = "disconnected" if not bad else "partial"
         return ActionResult(not bad, code, data={"bad": bad, "replies": replies,
                                                   "selected": selected})
+
+
+class DhcpPoolOperations(object):
+    """Verified DHCP pool changes scoped to one selected routed network.
+
+    A manual address is invisible to the DHCP lease table.  Consequently a
+    post-exclusion cut is deliberately limited to MACs that *were* DHCP
+    leases and still have an access-user session.  That is the difference
+    between migrating an accidental lease and taking an intended camera down.
+    """
+    def __init__(self, router, db, auto_save=True):
+        self.router = router
+        self.db = db
+        self.auto_save = bool(auto_save)
+
+    @staticmethod
+    def _network(state):
+        net = (state or {}).get("net") or {}
+        return net.get("ip", ""), int(net.get("len") or 0)
+
+    def _check_pool(self, state):
+        if not (state or {}).get("iface") or not state.get("dhcp"):
+            return ActionResult(False, "no_dhcp")
+        gateway, length = self._network(state)
+        if not gateway or not length:
+            return ActionResult(False, "no_dhcp")
+        return None
+
+    def _check_range(self, state, start, end):
+        problem = self._check_pool(state)
+        if problem:
+            return problem
+        start, end = (start or "").strip(), (end or "").strip()
+        if not valid_ip(start) or not valid_ip(end) or _ip_int(start) > _ip_int(end):
+            return ActionResult(False, "bad_range")
+        gateway, length = self._network(state)
+        lo, hi = subnet_bounds(gateway, length)
+        if not (lo < _ip_int(start) <= _ip_int(end) < hi):
+            return ActionResult(False, "outside_network")
+        return None
+
+    def _save(self):
+        return True if not self.auto_save else self.router.save_config()
+
+    def exclude_range(self, state, start, end, disconnect_leases=False):
+        """Exclude an inclusive range, verify config, optionally reauth leases.
+
+        The router immediately removes matching DHCP leases when it accepts an
+        exclusion.  We preserve the initial lease snapshot solely to identify
+        sessions that are safe to cut after that change.
+        """
+        problem = self._check_range(state, start, end)
+        if problem:
+            return problem
+        start, end = start.strip(), end.strip()
+        if any(range_contains(item["start"], item["end"], start, end)
+               for item in state.get("excluded") or []):
+            return ActionResult(True, "unchanged", data={"start": start, "end": end})
+        if any(ranges_overlap(item["start"], item["end"], start, end)
+               for item in state.get("excluded") or []):
+            # Do not ask VRP to combine or duplicate partially overlapping
+            # exclusions.  The operator can see the existing interval in the
+            # selected-network context and choose one deliberate replacement.
+            return ActionResult(False, "overlap_excluded")
+        if any(ip_in_ranges(bind.get("ip", ""), [{"start": start, "end": end}])
+               for bind in state.get("binds") or []):
+            # A pool reservation inside a withdrawn range is an ambiguous
+            # policy.  Refuse before altering a live DHCP pool.
+            return ActionResult(False, "binding_in_range")
+        affected = []
+        for mac, lease in (state.get("leases") or {}).items():
+            if lease.get("type", "").upper() == "DHCP" and ip_in_ranges(
+                    lease.get("ip", ""), [{"start": start, "end": end}]):
+                affected.append({"mac": mac, "ip": lease["ip"],
+                                 "online": mac in (state.get("online") or {})})
+        iface = state["iface"]
+        try:
+            self.router._system_view()
+            self.router.send("interface %s" % iface)
+            out = self.router.send("dhcp server excluded-ip-address %s %s" % (start, end), timeout=60)
+            err = first_error(out)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        finally:
+            try:
+                self.router.send("return")
+            except Exception:
+                pass
+        if err:
+            return ActionResult(False, "router_error", error=err)
+        try:
+            config = self.router.send("display current-configuration interface %s" % iface, timeout=40)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        verified = any(range_contains(item["start"], item["end"], start, end)
+                       for item in parse_dhcp_excluded_ranges(config))
+        if not verified:
+            return ActionResult(False, "not_confirmed")
+        attempted, cut, bad, cut_error = [], [], [], ""
+        if disconnect_leases and state.get("nac"):
+            attempted = [item["mac"] for item in affected if item["online"]]
+            if attempted:
+                try:
+                    replies = self.router.cut_users(attempted)
+                    bad = [mac for mac, reply in replies.items() if first_error(reply)]
+                    cut = [mac for mac in attempted if mac not in bad]
+                except Exception as exc:
+                    # Exclusion was already reread and verified.  Report a
+                    # session-cut failure as partial, never as if the pool
+                    # policy itself had failed.
+                    bad, cut_error = list(attempted), str(exc)
+        save_error = ""
+        try:
+            saved = self._save()
+        except Exception as exc:
+            # The live configuration has already been verified.  Keep that
+            # fact visible even when the startup-save exchange itself fails.
+            saved, save_error = False, str(exc)
+        self.db.log("dhcp_exclude", iface, "%s-%s; affected=%d; cut=%d" %
+                    (start, end, len(affected), len(cut)))
+        return ActionResult(not bad, "excluded" if not bad else "excluded_partial",
+                            data={"start": start, "end": end, "affected": affected,
+                                  "attempted": attempted, "cut": cut, "bad": bad,
+                                  "saved": saved}, error=cut_error or save_error)
+
+    def bind(self, state, mac, ip, description="", disconnect=False):
+        """Create one DHCP static-bind after validating pool and live state."""
+        problem = self._check_pool(state)
+        if problem:
+            return problem
+        mac12, ip = normalize_mac(mac), (ip or "").strip()
+        if not mac12:
+            return ActionResult(False, "bad_mac")
+        gateway, length = self._network(state)
+        lo, hi = subnet_bounds(gateway, length)
+        if not valid_ip(ip) or not (lo < _ip_int(ip) < hi):
+            return ActionResult(False, "outside_network")
+        if ip_in_ranges(ip, state.get("excluded") or []):
+            return ActionResult(False, "address_excluded")
+        for bind in state.get("binds") or []:
+            if bind["ip"] == ip and bind["mac"] != mac12:
+                return ActionResult(False, "ip_in_use")
+            if bind["mac"] == mac12 and bind["ip"] != ip:
+                return ActionResult(False, "mac_bound")
+            if bind["ip"] == ip and bind["mac"] == mac12:
+                return ActionResult(True, "unchanged", data={"ip": ip, "mac": mac12})
+        for held_mac, lease in (state.get("leases") or {}).items():
+            if lease.get("ip") == ip and held_mac != mac12:
+                return ActionResult(False, "ip_in_use")
+        for held_mac, arp in (state.get("arp") or {}).items():
+            if arp.get("ip") == ip and held_mac != mac12:
+                return ActionResult(False, "ip_in_use")
+        lease = (state.get("leases") or {}).get(mac12) or {}
+        release = lease.get("ip", "") if lease.get("ip") != ip else ""
+        iface = state["iface"]
+        desc = re.sub(r"[^A-Za-z0-9_.-]+", "-", description or "").strip("-")[:30]
+        try:
+            self.router.send("return")
+            if release:
+                out = self.router.send("reset ip pool interface %s %s" % (iface, release), timeout=60)
+                err = first_error(out)
+                if err:
+                    return ActionResult(False, "router_error", error=err)
+            self.router.send("system-view")
+            self.router.send("interface %s" % iface)
+            command = "dhcp server static-bind ip-address %s mac-address %s" % (ip, mac_dashed(mac12))
+            out = self.router.send(command + (" description %s" % desc if desc else ""), timeout=40)
+            err = first_error(out)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        finally:
+            try:
+                self.router.send("return")
+            except Exception:
+                pass
+        if err:
+            return ActionResult(False, "router_error", error=err)
+        try:
+            config = self.router.send("display current-configuration interface %s" % iface, timeout=40)
+        except Exception as exc:
+            return ActionResult(False, "router_error", error=str(exc))
+        if not any(item["ip"] == ip and item["mac"] == mac12 for item in parse_static_binds(config)):
+            return ActionResult(False, "not_confirmed")
+        attempted, bad, cut_error = [], [], ""
+        if disconnect and state.get("nac") and mac12 in (state.get("online") or {}):
+            attempted = [mac12]
+            try:
+                replies = self.router.cut_users(attempted)
+                bad = [entry for entry, reply in replies.items() if first_error(reply)]
+            except Exception as exc:
+                bad, cut_error = list(attempted), str(exc)
+        save_error = ""
+        try:
+            saved = self._save()
+        except Exception as exc:
+            saved, save_error = False, str(exc)
+        self.db.log("dhcp_bind", mac12, "%s %s" % (iface, ip))
+        return ActionResult(not bad, "bound" if not bad else "bound_partial",
+                            data={"ip": ip, "mac": mac12, "release": release,
+                                  "attempted": attempted, "bad": bad, "saved": saved},
+                            error=cut_error or save_error)
 
 
 class TrustedDeviceOperations(object):
@@ -3635,8 +4555,7 @@ def load_settings():
 
 
 def save_settings(s):
-    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-        json.dump(s, f, ensure_ascii=False, indent=2)
+    atomic_json_write(SETTINGS_FILE, s)
 
 
 def write_utf8_csv(path, headers, rows):
@@ -7094,7 +8013,7 @@ class _DemoMgmt(object):
         # شبكة الإدارة مثل الجهاز الحقيقي: مجمّعها ضيّق بعد استبعاد أكثره،
         # وفيها جهاز يحمل عنواناً في شبكته الأصلية أيضاً — أثر تسرّبها
         # غير موسومة عبر وصلة التبديل (docs/router/lessons-learned.md#L16)
-        self.excluded = {"1": 232}
+        self.excluded = {"1": [("10.0.1.2", "10.0.1.233")]}
         self.leases["1"] = dict(("10.0.1.%d" % n, "0000-5e00-53%02d" % (n + 10))
                                 for n in range(10, 31))
         self.leases["1"]["10.0.1.10"] = "0000-5e00-5302"
@@ -7161,7 +8080,7 @@ class _DemoMgmt(object):
             if not self.leases.get(m.group(1), {}).pop(m.group(2), None):
                 return "Error: The IP address is not used."
             return ""
-        if re.match(r"^(undo )?(dhcp server static-bind|rule |arp static|http (acl|server permit))", cmd):
+        if re.match(r"^(undo )?(dhcp server (static-bind|excluded-ip-address)|rule |arp static|http (acl|server permit))", cmd):
             self.commands.append((view, cmd))
             return self._config(cmd, view, sub)
         if cmd.startswith("display "):
@@ -7172,6 +8091,27 @@ class _DemoMgmt(object):
         bad = "Error: Unrecognized command found at '^' position."
         undo = cmd.startswith("undo ")
         body = cmd[5:] if undo else cmd
+        if body.startswith("dhcp server excluded-ip-address"):
+            vid = self._vid(sub) if view == "sub" else None
+            if vid is None or undo:
+                return bad
+            m = re.match(r"dhcp server excluded-ip-address (\S+)(?: (\S+))?$", body)
+            if not m or not valid_ip(m.group(1)) or (m.group(2) and not valid_ip(m.group(2))):
+                return "Error: Incomplete command found at '^' position."
+            start, end = m.group(1), m.group(2) or m.group(1)
+            gateway, length, _, _ = self.nets[vid]
+            lo, hi = subnet_bounds(gateway, length)
+            if not (lo < _ip_int(start) <= _ip_int(end) < hi):
+                return "Error: The IP address is not in the address pool."
+            ranges = self.excluded.setdefault(vid, [])
+            if (start, end) not in ranges:
+                ranges.append((start, end))
+                # The real pool removes dynamic leases it turns Disabled; keep
+                # access sessions so the Qt flow can still cut matching clients.
+                for ip in [ip for ip in self.leases.get(vid, {})
+                           if _ip_int(start) <= _ip_int(ip) <= _ip_int(end)]:
+                    del self.leases[vid][ip]
+            return "Info: The operation may take a few seconds. Please wait for a moment.done."
         if body.startswith("dhcp server static-bind"):
             vid = self._vid(sub) if view == "sub" else None
             if vid is None:
@@ -7297,6 +8237,9 @@ class _DemoMgmt(object):
             if nac:
                 out.append(" authentication-profile p_nac")
             out.append(" dhcp select interface")
+            for start, end in self.excluded.get(vid, []):
+                out.append(" dhcp server excluded-ip-address %s%s" %
+                           (start, " " + end if end != start else ""))
             for ip, (mac, desc) in sorted(self.binds.get(vid, {}).items()):
                 out.append(" dhcp server static-bind ip-address %s mac-address %s" % (ip, mac))
             return "\n".join(out + ["#", "return"])
@@ -7309,7 +8252,8 @@ class _DemoMgmt(object):
             leases = self.leases.get(m.group(1), {})
             total = hi - lo - 1
             # المستبعَد بـ excluded-ip-address يُعدّ Disabled ولا يُحسب متاحاً
-            off = self.excluded.get(m.group(1), 0)
+            off = sum(_ip_int(end) - _ip_int(start) + 1
+                      for start, end in self.excluded.get(m.group(1), []))
             out = ["  Pool-name        : Vlanif%s" % m.group(1),
                    "  Network          : %s" % _int_ip(lo),
                    "  Address Statistic: Total       :%-10d Used        :%-10d"
@@ -7414,6 +8358,10 @@ class _DemoDevice(object):
         self.wan.hostname = self.hostname
         self.mgmt = _DemoMgmt()
         self.sub = ""
+        self.static_nat = [{"interface": "GigabitEthernet0/0/8", "global": "current-interface",
+                            "external_port": 50012, "wan_ip": "192.168.2.250",
+                            "inside_ip": "192.168.233.234", "inside_port": 4000,
+                            "protocol": "tcp"}]
         self.online = [
             {"id": "1032", "user": "00005e005302", "ip": "10.0.20.166",
              "mac": "0000-5e00-5302", "status": "Success"},
@@ -7426,7 +8374,7 @@ class _DemoDevice(object):
     def prompt(self):
         if self.view == "macprof":
             return "[%s-mac-access-profile-%s]" % (self.hostname, self.profile)
-        if self.view == "sub":
+        if self.view in ("sub", "nat"):
             return "[%s-%s]" % (self.hostname, self.sub)
         return {"user": "<%s>", "system": "[%s]", "aaa": "[%s-aaa]"}[self.view] % self.hostname
 
@@ -7441,7 +8389,7 @@ class _DemoDevice(object):
                 return "Error: Unrecognized command found at '^' position."
             self.view = "aaa"; return ""
         if cmd == "quit":
-            self.view = {"aaa": "system", "macprof": "system", "sub": "system",
+            self.view = {"aaa": "system", "macprof": "system", "sub": "system", "nat": "system",
                          "system": "user", "user": "user"}[self.view]
             return ""
         if cmd == "return":
@@ -7449,6 +8397,46 @@ class _DemoDevice(object):
         mg = self.mgmt.run(cmd, self)
         if mg is not None:
             return mg
+        if cmd.startswith("interface GigabitEthernet"):
+            if self.view != "system":
+                return "Error: Unrecognized command found at '^' position."
+            iface = cmd.split()[1]
+            if iface not in {line["iface"] for line in self.wan.lines.values()
+                             if line["iface"].startswith("GigabitEthernet")}:
+                return "Error: Wrong parameter found at '^' position."
+            self.view, self.sub = "nat", iface
+            return ""
+        if cmd.startswith("nat static protocol tcp global current-interface "):
+            if self.view != "nat":
+                return "Error: Unrecognized command found at '^' position."
+            m = re.match(r"^nat static protocol tcp global current-interface (\d+) inside (%s) (\d+)$" % _IP_RE, cmd)
+            if not m:
+                return "Error: Incomplete command found at '^' position."
+            external, inside_ip, inside = int(m.group(1)), m.group(2), int(m.group(3))
+            if any(rule["interface"] == self.sub and rule["external_port"] == external
+                   and rule["protocol"] == "tcp" for rule in self.static_nat):
+                return "Error: The static NAT has existed."
+            wan = next(line for line in self.wan.lines.values() if line["iface"] == self.sub)
+            self.static_nat.append({"interface": self.sub, "global": "current-interface",
+                                    "external_port": external, "wan_ip": wan["ip"],
+                                    "inside_ip": inside_ip, "inside_port": inside,
+                                    "protocol": "tcp"})
+            return ""
+        if cmd.startswith("undo nat static protocol tcp global current-interface "):
+            if self.view != "nat":
+                return "Error: Unrecognized command found at '^' position."
+            m = re.match(r"^undo nat static protocol tcp global current-interface (\d+) inside (%s) (\d+)$" % _IP_RE, cmd)
+            if not m:
+                return "Error: Incomplete command found at '^' position."
+            external, inside_ip, inside = int(m.group(1)), m.group(2), int(m.group(3))
+            matching = next((rule for rule in self.static_nat
+                             if rule["interface"] == self.sub and rule["external_port"] == external
+                             and rule["inside_ip"] == inside_ip and rule["inside_port"] == inside
+                             and rule["protocol"] == "tcp"), None)
+            if not matching:
+                return "Error: The NAT does not exist."
+            self.static_nat.remove(matching)
+            return ""
         if cmd.startswith("mac-access-profile name ") and self.view == "system":
             self.profile = cmd.split()[2]
             self.profiles.setdefault(self.profile, None)
@@ -7545,6 +8533,27 @@ class _DemoDevice(object):
         return "\n".join(out)
 
     def _display(self, cmd):
+        if cmd == "display nat static":
+            out, current_iface = ["  Static Nat Information:"], None
+            for rule in self.static_nat:
+                if rule["interface"] != current_iface:
+                    current_iface = rule["interface"]
+                    out.append("  Interface  : %s" % current_iface)
+                out += ["    Global IP/Port     : %s/%s (Real IP : %s)" %
+                        (rule["global"], rule["external_port"], rule["wan_ip"]),
+                        "    Inside IP/Port     : %s/%s" % (rule["inside_ip"], rule["inside_port"]),
+                        "    Protocol : 6(%s)" % rule["protocol"],
+                        "    VPN instance-name  : ----", ""]
+            out.append("  Total :    %d" % len(self.static_nat))
+            return "\n".join(out)
+        m = re.match(r"^display ip routing-table (%s)$" % _IP_RE, cmd)
+        if m:
+            destination = m.group(1)
+            if ip_in_subnet(destination, "10.0.20.1", 23):
+                return ("Routing Table : Public\nSummary Count : 1\n"
+                        "Destination/Mask    Proto   Pre  Cost      Flags NextHop         Interface\n\n"
+                        "    10.0.20.0/23  Direct  0    0           D   10.0.20.1      Vlanif20")
+            return "Routing Table : Public\nSummary Count : 0"
         if cmd.startswith("display current-configuration configuration aaa"):
             return self._aaa_config()
         if cmd.startswith("display current-configuration configuration mac-access-profile"):
@@ -7573,7 +8582,26 @@ class _DemoDevice(object):
                 if self.groups[g]:
                     b += [" acl-id %s" % self.groups[g]]
                 b += ["#"]
-            b += ["acl number 3020", " rule 5 permit ip", "#"]
+            # A realistic policy shape for the access-policy reader: ACL 3020
+            # remains a default-deny allowlist and the application blocks are
+            # separately bound to Vlanif20.
+            b += ["acl number 3020", " rule 5 permit ip destination 157.240.0.0 0.15.255.255",
+                  " rule 3000 deny ip", "#",
+                  "traffic classifier ST01 operator or", " if-match application Facebook", "#",
+                  "traffic classifier ST18 operator or", " if-match application TikTok", "#",
+                  "traffic classifier ST19 operator or", " if-match application Youtube",
+                  " if-match application YouTube_Music", " if-match application YouTube_Kids", "#",
+                  "traffic classifier ST20 operator or", " if-match application OpenVPN",
+                  " if-match application WireGuardVPN", " if-match application Shadowsocks", "#",
+                  "traffic behavior BLOCK", " deny", "#",
+                  "interface Vlanif10", " description GW-MANAGERS",
+                  " authentication-profile p_nac", "#",
+                  "traffic policy STAFF-APPS", " classifier ST01 behavior BLOCK precedence 1",
+                  " classifier ST18 behavior BLOCK precedence 18",
+                  " classifier ST19 behavior BLOCK precedence 19",
+                  " classifier ST20 behavior BLOCK precedence 20", "#",
+                  "interface Vlanif20", " description GW-STAFF",
+                  " authentication-profile p_nac", " traffic-policy STAFF-APPS inbound", "#"]
             b += self._aaa_config().splitlines()
             return "\n".join(b)
         if cmd.startswith("display user-group"):

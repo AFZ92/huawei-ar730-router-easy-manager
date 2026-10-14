@@ -10,14 +10,15 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 WORK = tempfile.mkdtemp(prefix="ar730qt_")
 APPDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for filename in ("ar730_manager.py", "ar730_qt.py", "release_update.py"):
+for filename in ("ar730_manager.py", "ar730_qt.py", "release_update.py", "firebase_merge.py"):
     shutil.copy(os.path.join(APPDIR, filename), WORK)
 shutil.copytree(os.path.join(APPDIR, "data"), os.path.join(WORK, "data"))
 shutil.copytree(os.path.join(APPDIR, "assets"), os.path.join(WORK, "assets"))
 sys.path.insert(0, WORK)
+sys.argv[0] = os.path.join(WORK, "ar730_qt.py")
 
 from PySide6.QtGui import QColor, QFontMetrics  # noqa: E402
-from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QPushButton  # noqa: E402
+from PySide6.QtWidgets import QApplication, QCheckBox, QLabel, QLineEdit, QPushButton  # noqa: E402
 import ar730_qt as qt  # noqa: E402
 
 
@@ -37,6 +38,7 @@ def snapshot(device):
         "profiles": device.profiles,
         "mgmt": device.mgmt.__dict__,
         "online": device.online,
+        "static_nat": getattr(device, "static_nat", []),
     })
 
 
@@ -51,6 +53,92 @@ controller.refresh()
 after = snapshot(qt.legacy._DemoParamiko.device)
 check("التحديث لا يغير بيانات الراوتر التجريبي", before == after)
 check("التحديث يجلب حالة الحساب المحظور", controller.states.get("00005e005303") == "B")
+policy_rows = qt.legacy.application_policy_rows(
+    controller.application_config, "STAFF-APPS", controller.groups.get("grp_staff"))
+policy_by_app = {row["application"]: row for row in policy_rows}
+check("قارئ سياسة التطبيقات يربط سياسة VLAN الواردة",
+      controller.application_config.get("interfaces", {}).get("Vlanif20", {}).get("inbound_policy") == "STAFF-APPS")
+check("قارئ سياسة التطبيقات يميّز شبكة المدراء بلا سياسة تطبيقات",
+      controller.application_config.get("interfaces", {}).get("Vlanif10", {}).get("nac")
+      and not controller.application_config.get("interfaces", {}).get("Vlanif10", {}).get("inbound_policy"))
+check("قارئ سياسة التطبيقات يكتشف حظر فيسبوك",
+      policy_by_app.get("Facebook", {}).get("state") == "blocked")
+check("قارئ سياسة التطبيقات لا يخلط السماح مع ACL بمنع افتراضي",
+      policy_by_app.get("WhatsAPP", {}).get("state") == "acl-dependent")
+
+
+class PolicyRouter:
+    """Small mutable policy-only fake for verified application operations."""
+    def __init__(self):
+        self.classifiers = {"ST19": ["Youtube", "YouTube_Music"]}
+        self.policy = [{"classifier": "ST19", "behavior": "BLOCK", "precedence": 19}]
+        self.view = "user"
+        self.current = ""
+        self.saved = False
+
+    def read_group_acls(self):
+        rows = ["user-group grp_staff", " acl-id 3020", "#",
+                "acl number 3020", " rule 3000 deny ip", "#"]
+        for name, apps in sorted(self.classifiers.items()):
+            rows.append("traffic classifier %s operator or" % name)
+            rows.extend(" if-match application %s" % app for app in apps)
+            rows.append("#")
+        rows.extend(["traffic behavior BLOCK", " deny", "#", "traffic policy STAFF-APPS"])
+        rows.extend(" classifier %s behavior %s precedence %d" %
+                    (entry["classifier"], entry["behavior"], entry["precedence"])
+                    for entry in self.policy)
+        rows.extend(["#", "interface Vlanif20", " traffic-policy STAFF-APPS inbound", "#"])
+        return "\n".join(rows)
+
+    def send(self, command, timeout=25):
+        command = command.strip()
+        if command in {"return", "system-view", "quit"}:
+            self.view = "user" if command == "return" else self.view
+            return ""
+        if command.startswith("traffic classifier "):
+            self.current = command.split()[2]
+            self.classifiers.setdefault(self.current, [])
+            self.view = "classifier"
+            return ""
+        if command.startswith("if-match application ") and self.view == "classifier":
+            app = command.split()[2]
+            if app not in self.classifiers[self.current]:
+                self.classifiers[self.current].append(app)
+            return ""
+        if command.startswith("traffic policy "):
+            self.current = command.split()[2]
+            self.view = "policy"
+            return ""
+        if command.startswith("classifier ") and self.view == "policy":
+            _, classifier, _, behavior, _, precedence = command.split()
+            self.policy = [row for row in self.policy if row["classifier"] != classifier]
+            self.policy.append({"classifier": classifier, "behavior": behavior,
+                                "precedence": int(precedence)})
+            return ""
+        if command.startswith("undo classifier ") and self.view == "policy":
+            classifier = command.split()[2]
+            self.policy = [row for row in self.policy if row["classifier"] != classifier]
+            return ""
+        raise AssertionError("unexpected policy command: %s" % command)
+
+    def save_config(self):
+        self.saved = True
+        return True
+
+
+policy_router = PolicyRouter()
+policy_ops = qt.legacy.ApplicationPolicyOperations(policy_router, auto_save=False)
+blocked = policy_ops.block("STAFF-APPS", "Instagram")
+check("حظر تطبيق ينشئ مصنفاً مستقلاً ويتحقق", blocked.ok and blocked.code == "application_blocked"
+      and any("Instagram" in apps for apps in policy_router.classifiers.values()))
+allowed = policy_ops.allow("STAFF-APPS", "Instagram")
+check("السماح لتطبيق يفك ربط مصنفه ويتحقق", allowed.ok and allowed.code == "application_allowed")
+bundle = policy_ops.allow("STAFF-APPS", "Youtube")
+check("السماح لتحميل مصنف مشترك يطلب تأكيد نطاق الأثر", bundle.code == "shared_classifier"
+      and bundle.data["affected"] == ["YouTube_Music", "Youtube"])
+bundle_allowed = policy_ops.allow("STAFF-APPS", "Youtube", allow_bundle=True)
+check("تأكيد السماح للمصنف المشترك يفك الحظر للتحقق", bundle_allowed.ok
+      and not policy_router.policy and not policy_router.saved)
 
 window = qt.MainWindow(controller, demo=True)
 window.show()
@@ -85,7 +173,31 @@ for widget_type in (QLabel, QPushButton, QCheckBox):
             english_text.append(widget.text())
 check("لا يبقى نص عربي مرئي في الواجهة الإنجليزية", not english_text, ", ".join(sorted(set(english_text))))
 check("كل صفحات التطبيق والدليل مرئية في الشريط", len(window.nav) == len(qt.APP_PAGES) + 2)
-check("جميع جداول الواجهة ظاهرة", set(window.tables) == {"devices", "portal", "online", "vlans", "management", "wan", "groups"})
+check("جميع جداول الواجهة ظاهرة", set(window.tables) == {"devices", "portal", "online", "vlans", "management", "wan", "groups", "nat"})
+check("صفحة وكيل الكاميرات أُزيلت", "advisor" not in qt.APP_PAGES
+      and not hasattr(window, "inspect_camera_networks"))
+window.stack.setCurrentIndex(7)
+app.processEvents()
+check("صفحة سياسة التطبيقات تعرض اختيار المجموعة والواجهة",
+      hasattr(window, "application_group") and window.application_group.isVisible()
+      and hasattr(window, "application_interface") and window.application_interface.isVisible())
+window.application_group.setCurrentIndex(window.application_group.findData("grp_managers"))
+app.processEvents()
+check("اختيار المدراء لا يعرض حظر الموظفين",
+      window.application_group.currentData() == "grp_managers"
+      and window.application_interface.currentData() == "Vlanif10"
+      and window.application_table.rowCount() == 0
+      and not window.block_application.isEnabled())
+window.application_group.setCurrentIndex(window.application_group.findData("grp_staff"))
+app.processEvents()
+check("جدول سياسة التطبيقات يعرض حظر Facebook", any(
+      window.application_table.item(row, 0) is not None
+      and window.application_table.item(row, 0).text() == "Facebook"
+      and window.application_table.item(row, 2).text() == "Blocked"
+      for row in range(window.application_table.rowCount())))
+check("صفحة سياسة التطبيقات تشرح أثر ACL الافتراضي",
+      "default deny" in window.application_context.text()
+      and "not mean the application is allowed" in window.application_explanation.text())
 window.stack.setCurrentIndex(1)
 app.processEvents()
 check("زر تحديث الأجهزة ظاهر", hasattr(window, "refresh_devices") and window.refresh_devices.isVisible())
@@ -123,6 +235,7 @@ app.processEvents()
 check("نافذة الاتصال تظهر", window.connect_dialog is not None and window.connect_dialog.isVisible())
 if window.connect_dialog is not None:
     check("نافذة الاتصال الإنجليزية LTR", window.connect_dialog.layoutDirection() == qt.Qt.LeftToRight)
+    check("نافذة الاتصال تركز كلمة المرور", window.connect_dialog.focusWidget() is window.connect_dialog.password)
     window.connect_dialog.reject()
 window._toggle_language()
 app.processEvents()
@@ -223,6 +336,58 @@ check("فصل جهاز الشبكة لا يغير حسابات AAA أو الإع
 check("فصل جهاز الشبكة يعيد قراءة صفوف VLAN", controller.vlan_state is not None
       and all(row.get("mac") != cut_mac or not row.get("auth") for row in controller.vlan_state["rows"]))
 check("رفض فصل VLAN بلا تحديد قبل الراوتر", controller.disconnect_vlan_devices([]).code == "missing_selection")
+
+# DHCP actions live with the selected network, not in a global settings page.
+no_dhcp = controller.select_vlan("30")
+check("شبكة بلا واجهة لا تعرض DHCP", no_dhcp is not None and not no_dhcp.get("dhcp")
+      and controller.exclude_dhcp_range("10.0.30.20", "10.0.30.30").code == "no_dhcp")
+window._render()
+check("إجراءات DHCP تبقى قابلة للنقر لتشرح سبب عدم إتاحتها", window.exclude_dhcp_range.isEnabled()
+      and window.bind_vlan_dhcp.isEnabled())
+staff_state = controller.select_vlan(staff["vid"])
+before_dhcp_exclude = snapshot(qt.legacy._DemoParamiko.device)
+excluded = controller.exclude_dhcp_range("10.0.20.180", "10.0.20.181")
+after_dhcp_exclude = snapshot(qt.legacy._DemoParamiko.device)
+check("استثناء نطاق DHCP Qt نجح وتحقق", excluded.ok and excluded.code == "excluded"
+      and any(item["start"] == "10.0.20.180" and item["end"] == "10.0.20.181"
+              for item in controller.vlan_state.get("excluded", [])))
+check("استثناء DHCP يغير المجمّع فقط", before_dhcp_exclude["mgmt"] != after_dhcp_exclude["mgmt"]
+      and before_dhcp_exclude["users"] == after_dhcp_exclude["users"])
+before_dhcp_guard = snapshot(qt.legacy._DemoParamiko.device)
+check("رفض نطاق DHCP المتداخل جزئياً", controller.exclude_dhcp_range(
+      "10.0.20.181", "10.0.20.182").code == "overlap_excluded"
+      and before_dhcp_guard == snapshot(qt.legacy._DemoParamiko.device))
+# الجهاز 5302 له إيجار DHCP معروف، أما 5371 فجلسة لعنوان يدوي لا يظهر في
+# مجمّع DHCP. يجب أن يقطع الخيار الاختياري الأول وحده.
+qt.legacy._DemoParamiko.device.online.extend([
+    {"id": "1101", "user": "00005e005302", "ip": "10.0.20.166",
+     "mac": "0000-5e00-5302", "status": "Success"},
+    {"id": "1102", "user": "00005e005371", "ip": "10.0.20.167",
+     "mac": "0000-5e00-5371", "status": "Success"},
+])
+controller.select_vlan(staff["vid"])
+lease_cut = controller.exclude_dhcp_range("10.0.20.166", "10.0.20.167", True)
+remaining_session_macs = {qt.legacy.normalize_mac(row["mac"])
+                          for row in qt.legacy._DemoParamiko.device.online}
+check("فصل الاستثناء يقطع جلسة إيجار DHCP المطابق فقط", lease_cut.ok
+      and lease_cut.data["cut"] == ["00005e005302"]
+      and "00005e005302" not in remaining_session_macs
+      and "00005e005371" in remaining_session_macs)
+check("رفض ربط عنوان DHCP مستثنى", controller.bind_vlan_dhcp(
+      "00005e005362", "10.0.20.180").code == "address_excluded")
+before_dhcp_bind = snapshot(qt.legacy._DemoParamiko.device)
+dhcp_bind = controller.bind_vlan_dhcp("00005e005362", "10.0.21.250", "Qt-Camera")
+after_dhcp_bind = snapshot(qt.legacy._DemoParamiko.device)
+check("ربط IP بماك Qt يحرر الإيجار السابق ويتحقق", dhcp_bind.ok and dhcp_bind.code == "bound"
+      and dhcp_bind.data["release"] == "10.0.21.254"
+      and qt.legacy.normalize_mac(qt.legacy._DemoParamiko.device.mgmt.binds["20"]["10.0.21.250"][0])
+      == "00005e005362")
+check("ربط DHCP لا يضيف ARP ثابتاً أو صلاحية إدارة", before_dhcp_bind["users"] == after_dhcp_bind["users"]
+      and "10.0.21.250" not in qt.legacy._DemoParamiko.device.mgmt.arp)
+before_bound_range_guard = snapshot(qt.legacy._DemoParamiko.device)
+check("رفض استثناء نطاق يحتوي ربط DHCP ثابتاً", controller.exclude_dhcp_range(
+      "10.0.21.250", "10.0.21.250").code == "binding_in_range"
+      and before_bound_range_guard == snapshot(qt.legacy._DemoParamiko.device))
 window._render()
 window.stack.setCurrentIndex(4)
 app.processEvents()
@@ -234,6 +399,11 @@ check("زر فحص تداخل الشبكات Qt ظاهر", hasattr(window, "scan
       and window.scan_vlan_overlap.isVisible())
 check("زر فصل المحدد من الشبكة Qt ظاهر", hasattr(window, "cut_vlan_devices")
       and window.cut_vlan_devices.isVisible())
+check("إجراءات DHCP ظاهرة للشبكة المختارة", hasattr(window, "exclude_dhcp_range")
+      and window.exclude_dhcp_range.isVisible() and hasattr(window, "bind_vlan_dhcp")
+      and window.bind_vlan_dhcp.isVisible())
+check("سياق DHCP الإنجليزي لا يعيد نصاً عربياً", "DHCP enabled" in window.vlan_context.text()
+      and not any("مستثنى" in word or "مجمّع" in word for word in window.vlan_context.text().split()))
 check("جدول عملاء الشبكة Qt ظاهر", "vlans" in window.tables and window.tables["vlans"].isVisible())
 check("جدول الشبكة يعرض عنوان الشبكة الأخرى", any(
       window.tables["vlans"].item(row, 8) is not None
@@ -324,6 +494,22 @@ check("تغيير كلمة سر MAC Qt نجح", rotated_mac_password.ok and rota
 check("تغيير كلمة سر MAC يحفظ القيمة الجديدة", controller.settings.get("mac_shared_password") == "Qt-Shared-11")
 check("تغيير كلمة سر MAC يفك الحساب المحظور", "00005e005303" in (rotated_mac_password.data or {}).get("unblocked", []))
 check("نافذة تغيير كلمة سر MAC موجودة", hasattr(qt, "RotateMacPasswordDialog"))
+mac_password_dialog = qt.RotateMacPasswordDialog(["m_wl"], "m_wl")
+mac_password_dialog.password.setText("Visible-MAC-11")
+mac_password_dialog.password_confirm.setText("Visible-MAC-11")
+app.processEvents()
+check("تأكيد كلمة MAC يعرض التطابق فورياً", "match" in mac_password_dialog.password_match.text().lower())
+mac_password_dialog.show_password.setChecked(True)
+check("خيار إظهار كلمة MAC يكشف حقلي التغيير", mac_password_dialog.password.echoMode() == QLineEdit.Normal
+      and mac_password_dialog.password_confirm.echoMode() == QLineEdit.Normal)
+window.setting_mac_password.setText("Visible-MAC-12")
+window.setting_mac_password_confirm.setText("Visible-MAC-12")
+window.setting_show_mac_password.setChecked(True)
+app.processEvents()
+check("الإعدادات تتحقق من كلمتي MAC وتكشفهما عند الطلب",
+      "match" in window.setting_mac_password_status.text().lower()
+      and window.setting_mac_password.echoMode() == QLineEdit.Normal
+      and window.setting_mac_password_confirm.echoMode() == QLineEdit.Normal)
 
 print("٨ — تغيير كلمة مرور حساب البوابة")
 password_changed = controller.change_portal_password(portal_user, "Qt-Changed-10")
@@ -398,6 +584,42 @@ check("Ping وHTTPS يظهران كأيقونات ملوّنة", wan1 is not Non
       and wan_table.item(wan1, 5).foreground().color() == QColor("#B42318"))
 check("الخط المنفصل مميّز بالأحمر", wan2 is not None
       and wan_table.item(wan2, 9).foreground().color() == QColor("#B42318"))
+before_nat_read = snapshot(qt.legacy._DemoParamiko.device)
+nat_rules = controller.refresh_nat()
+after_nat_read = snapshot(qt.legacy._DemoParamiko.device)
+check("تحديث تحويلات NAT لا يغير الراوتر", before_nat_read == after_nat_read)
+check("تحويلات NAT تعرض القاعدة القائمة وواجهات WAN", bool(nat_rules)
+      and any(item["iface"] == "GigabitEthernet0/0/8" for item in controller.nat_interfaces))
+controller.settings["auto_save_config"] = True
+nat_added = controller.add_static_nat("GigabitEthernet0/0/8", "65010", "10.0.20.210", "4370")
+check("إضافة تحويل NAT Qt تنجح وتتحقق", nat_added.ok and nat_added.code == "nat_added"
+      and any(rule["external_port"] == 65010 and rule["inside_ip"] == "10.0.20.210"
+              and rule["inside_port"] == 4370 for rule in controller.nat_rules))
+controller.settings["auto_save_config"] = False
+check("رفض NAT المكرر قبل الكتابة", controller.add_static_nat(
+    "GigabitEthernet0/0/8", "65010", "10.0.20.210", "4370").code == "duplicate")
+check("رفض جهاز NAT على شبكة WAN", controller.add_static_nat(
+    "GigabitEthernet0/0/8", "65011", "192.168.2.208", "4370").code == "inside_on_wan")
+window._render()
+check("جدول NAT يعرض التحويل الجديد", window.tables["nat"].rowCount() >= 2
+      and any(window.tables["nat"].item(row, 3).text() == "65010"
+              for row in range(window.tables["nat"].rowCount())))
+nat_original = next(rule for rule in controller.nat_rules if rule["external_port"] == 65010)
+nat_edited = controller.edit_static_nat(
+    nat_original, "GigabitEthernet0/0/8", "65011", "10.0.20.210", "4371")
+check("تعديل NAT يستبدل القاعدة ويتحقق", nat_edited.ok and nat_edited.code == "nat_edited"
+      and any(rule["external_port"] == 65011 and rule["inside_port"] == 4371
+              for rule in controller.nat_rules)
+      and not any(rule["external_port"] == 65010 for rule in controller.nat_rules))
+nat_replacement = next(rule for rule in controller.nat_rules if rule["external_port"] == 65011)
+nat_deleted = controller.delete_static_nat(nat_replacement)
+check("حذف NAT يزيل القاعدة ويتحقق", nat_deleted.ok and nat_deleted.code == "nat_deleted"
+      and not any(rule["external_port"] == 65011 for rule in controller.nat_rules))
+window._render()
+window.stack.setCurrentIndex(10)
+app.processEvents()
+check("إجراءات تعديل وحذف NAT ظاهرة", window.edit_static_nat.isVisible()
+      and window.delete_static_nat.isVisible())
 window._set_busy(True)
 check("قفل الواجهة يظهر تحميلًا ويمنع الأزرار", window.busy_overlay.isVisible()
       and window.busy_spinner.minimum() == 0 and window.busy_spinner.maximum() == 0
@@ -410,7 +632,7 @@ check("حفظ إعدادات Qt محلي ناجح", saved.ok and saved.code == "
 check("وضع التخزين المحلي يعطل Firebase", controller.firebase_sync().code == "storage_mode_local")
 window._render()
 for index, attribute in ((5, "refresh_management"), (6, "check_wan"), (7, "refresh_groups"),
-                         (8, "save_settings"), (9, "copy_log")):
+                         (8, "save_settings"), (9, "copy_log"), (10, "refresh_nat")):
     window.stack.setCurrentIndex(index)
     app.processEvents()
     check("إجراء Qt ظاهر: %s" % attribute, hasattr(window, attribute) and getattr(window, attribute).isVisible())
@@ -438,33 +660,33 @@ check("بيانات محلية وسحابية غير متزامنة لا تُس�
       resolver.initial_sync_action(remote_state["db"])[0] == "conflict")
 
 class FakeFirebase:
-    def __init__(self, state):
-        self.state, self.pushes = state, []
+    def __init__(self, settings):
+        self.settings = settings
     def configured(self): return True
-    def pull(self): return copy.deepcopy(self.state)
-    def push(self, db_data):
-        self.pushes.append(copy.deepcopy(db_data))
-        return "unexpected"
+    def _url(self): return "fake://shared"
+    def pull(self):
+        state = copy.deepcopy(remote_state)
+        state["_update_time"] = "1"
+        return state
+    def archive(self, state): pass
+    def commit(self, state, expected):
+        raise AssertionError("An empty installation must only read the cloud")
 
-fake_firebase = FakeFirebase(remote_state)
 original_firebase = qt.legacy.FirebaseSync
-class FirebaseFactory:
-    DB_KEYS = original_firebase.DB_KEYS
-    def __new__(cls, settings): return fake_firebase
+FakeFirebase.DB_KEYS = original_firebase.DB_KEYS
 try:
-    qt.legacy.FirebaseSync = FirebaseFactory
+    qt.legacy.FirebaseSync = FakeFirebase
     fresh_controller = qt.ReadController(demo=True)
     fresh_controller.db = qt.legacy.LocalDB(path=os.path.join(WORK, "firebase_test_devices.json"))
     fresh_controller.db.data = copy.deepcopy(empty_db)
-    fresh_controller.settings["storage_mode"] = "firebase"
-    hydrated = fresh_controller.firebase_download()
-    check("Firebase الأساسي يجلب بياناته إلى المحلّي", hydrated.ok and hydrated.code == "downloaded"
+    fresh_controller.settings = {"storage_mode": "firebase"}
+    fresh_controller.firebase = FakeFirebase(fresh_controller.settings)
+    hydrated = fresh_controller.firebase_sync()
+    check("Firebase يجلب البيانات دون رفع ملف فارغ", hydrated.ok and hydrated.code == "synced"
           and fresh_controller.db.data["devices"] == remote_state["db"]["devices"]
           and os.path.exists(hydrated.data["backup"]))
-    check("تنزيل Firebase لا يرفع ملفاً فارغاً", not fake_firebase.pushes)
-    uploaded = fresh_controller.firebase_upload()
-    check("رفع Firebase لا يحدث إلا بإجراء صريح", uploaded.ok and uploaded.code == "uploaded"
-          and bool(fake_firebase.pushes))
+    check("نقطة المزامنة محفوظة مع قاعدة البيانات", qt.cloud_merge.META_KEY in fresh_controller.db.data
+          and not fresh_controller._firebase_dirty)
     fresh_controller.close()
 finally:
     qt.legacy.FirebaseSync = original_firebase

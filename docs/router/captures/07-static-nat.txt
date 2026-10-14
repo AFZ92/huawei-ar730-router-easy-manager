@@ -1,0 +1,34 @@
+Static NAT capture — Huawei AR730, VRP V300R024C00SPC100
+Sensitive hostname removed; addresses retained because they define the tested topology.
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>display nat static
+  Static Nat Information:
+  Interface  : GigabitEthernet0/0/8
+    Global IP/Port     : current-interface/50012 (Real IP : 192.168.2.250)
+    Inside IP/Port     : 192.168.233.234/4000
+    Protocol : 6(tcp)
+
+    Global IP/Port     : current-interface/65010 (Real IP : 192.168.2.250)
+    Inside IP/Port     : 10.0.20.210/4370
+    Protocol : 6(tcp)
+
+  Total :    7
+<AR730_XXXXXXXXXXXXXXXXXXXX>
+
+<AR730_XXXXXXXXXXXXXXXXXXXX>system-view
+[AR730_XXXXXXXXXXXXXXXXXXXX]interface GigabitEthernet0/0/8
+[AR730_XXXXXXXXXXXXXXXXXXXX-GigabitEthernet0/0/8]nat static protocol tcp global current-interface 65010 inside 10.0.20.210 4370
+[AR730_XXXXXXXXXXXXXXXXXXXX-GigabitEthernet0/0/8]
+
+NAT removal help capture — 2026-10-08
+
+[AR730_XXXXXXXXXXXXXXXXXXXX-GigabitEthernet0/0/8]undo nat static protocol tcp global current-interface ?
+  <0-65535>  Global port of NAT
+  inside     Specify inside information of NAT
+[AR730_XXXXXXXXXXXXXXXXXXXX-GigabitEthernet0/0/8]undo nat static protocol tcp global current-interface 50012 inside ?
+  IP_ADDR<X.X.X.X>  Inside IP address of NAT
+[AR730_XXXXXXXXXXXXXXXXXXXX-GigabitEthernet0/0/8]undo nat static protocol tcp global current-interface 50012 inside 192.168.233.234 ?
+  <0-65535>         Inside port of NAT
+  <cr>               Please press ENTER to execute command
+[AR730_XXXXXXXXXXXXXXXXXXXX-GigabitEthernet0/0/8]undo nat static protocol tcp global current-interface 50012 inside 192.168.233.234
+Error: The NAT does not exist.

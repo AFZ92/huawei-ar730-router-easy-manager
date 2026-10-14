@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 """تطبيق سطح المكتب الرسمي لإدارة الوصول على Huawei AR730."""
 import argparse
+import copy
+import time
 import datetime
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -18,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 import ar730_manager as legacy
+import firebase_merge as cloud_merge
 
 
 # سطح التطبيق الرسمي. يبقى هنا بجانب الواجهة الوحيدة بدلاً من عقد انتقال منفصل.
@@ -31,6 +35,7 @@ APP_PAGES = {
     "groups": {"title": "مجموعات الصلاحيات", "columns": ("المجموعة", "القائمة", "الأعضاء")},
     "settings": {"title": "الإعدادات", "columns": ()},
     "log": {"title": "سجل الأوامر", "columns": ()},
+    "nat": {"title": "تحويل المنافذ NAT", "columns": ("واجهة WAN", "عنوان WAN", "البروتوكول", "المنفذ الخارجي", "عنوان الجهاز", "المنفذ الداخلي")},
 }
 
 
@@ -63,11 +68,98 @@ _TEXT_BY_ARABIC.update({
     "تحديث المتصلين": "Refresh online users",
     "الشبكة": "Network",
     "تحديث الشبكات": "Refresh networks",
+    "استثناء نطاق DHCP": "Exclude DHCP range",
+    "ربط IP بـ MAC": "Bind IP to MAC",
+    "استثناء نطاق من DHCP": "Exclude a DHCP range",
+    "ربط IP ثابت بـ MAC": "Bind a static IP to MAC",
+    "أول عنوان": "First address",
+    "آخر عنوان": "Last address",
+    "عنوان النهاية": "End address",
+    "عنوان البداية": "Start address",
+    "فصل جلسات DHCP المطابقة بعد الاستثناء": "Disconnect matching DHCP sessions after exclusion",
+    "لن يُوزع DHCP هذا النطاق بعد الحفظ. فصل الجلسات اختياري ويقتصر على الأجهزة التي يطابق MAC الخاص بها إيجار DHCP؛ لا تُفصل الأجهزة ذات العنوان الثابت اليدوي.": "DHCP will no longer distribute this range after saving. Disconnecting is optional and only applies where the MAC exactly matches a DHCP lease; manually static devices are not disconnected.",
+    "استثناء والتحقق": "Exclude and verify",
+    "عنوان الماك": "MAC address",
+    "عنوان IP المطلوب": "Requested IP address",
+    "وصف الراوتر": "Router description",
+    "فصل الجلسة بعد الربط لتجديد العنوان": "Disconnect the session after binding to renew the address",
+    "الربط يحجز عنوان DHCP لهذا MAC فقط. لا يضيف ARP ثابتاً أو صلاحية إدارة، ولا يمكن اختيار عنوان مستثنى من مجمّع DHCP.": "This binding reserves a DHCP address for this MAC only. It adds no static ARP or management access, and an excluded pool address cannot be chosen.",
+    "ربط والتحقق": "Bind and verify",
+    "اختياري، أحرف إنجليزية وأرقام": "Optional; English letters and numbers",
+    "هذه الشبكة بلا واجهة عنوان على الراوتر، ولا تملك DHCP محلياً.": "This network has no routed interface on the router, so it has no local DHCP.",
+    "هذه الشبكة لا تستخدم DHCP من واجهتها على الراوتر.": "This network does not use DHCP from its router interface.",
+    "حدّث الشبكات واختر شبكة أولاً.": "Refresh the networks and choose one first.",
+    "اختر جهازاً من جدول الشبكة أولاً.": "Choose a device from the network table first.",
+    "تم استثناء النطاق والتحقق من إعداد الراوتر.": "The range was excluded and the router configuration was verified.",
+    "هذا النطاق مستثنى بالفعل.": "This range is already excluded.",
+    "الشبكة المحددة لا تملك DHCP محلياً.": "The selected network has no local DHCP.",
+    "أدخل نطاق IP صحيحاً بترتيب البداية ثم النهاية.": "Enter a valid IP range with the start before the end.",
+    "النطاق خارج شبكة الواجهة المحددة.": "The range is outside the selected interface network.",
+    "النطاق يتداخل جزئياً مع نطاق DHCP مستثنى بالفعل.": "The range partially overlaps an already excluded DHCP range.",
+    "يوجد ربط DHCP ثابت داخل النطاق المطلوب استثناؤه.": "A static DHCP binding exists inside the range to exclude.",
+    "نُفذ الأمر لكن النطاق لم يظهر عند إعادة قراءة الإعداد.": "The command ran, but the range was absent when the configuration was reread.",
+    "تعذر تعديل مجمّع DHCP.": "Could not modify the DHCP pool.",
+    "تم الاستثناء، لكن تعذر فصل بعض الجلسات المطابقة.": "The range was excluded, but some matching sessions could not be disconnected.",
+    "تم ربط IP بـ MAC والتحقق من إعداد DHCP.": "The IP was bound to the MAC and the DHCP configuration was verified.",
+    "هذا الربط موجود بالفعل.": "This binding already exists.",
+    "عنوان MAC المحدد غير صالح.": "The selected MAC address is invalid.",
+    "عنوان IP خارج شبكة الواجهة المحددة.": "The IP address is outside the selected interface network.",
+    "لا يمكن ربط عنوان مستثنى من مجمّع DHCP.": "An address excluded from the DHCP pool cannot be bound.",
+    "العنوان مستخدم حالياً أو ظاهر لجهاز MAC آخر.": "The address is in use or is visible for another MAC address.",
+    "هذا MAC مربوط بالفعل بعنوان DHCP آخر.": "This MAC is already bound to another DHCP address.",
+    "نُفذ الأمر لكن الربط لم يظهر عند إعادة قراءة الإعداد.": "The command ran, but the binding was absent when the configuration was reread.",
+    "تعذر إنشاء ربط DHCP.": "Could not create the DHCP binding.",
+    "تم الربط، لكن تعذر فصل الجلسة المختارة لتجديد العنوان.": "The address was bound, but the selected session could not be disconnected to renew it.",
+    "لم يُحفظ إعداد بدء التشغيل تلقائياً.": "The startup configuration was not saved automatically.",
     "إضافة جهاز إدارة": "Add management device",
     "إزالة جهاز إدارة": "Remove management device",
     "تغيير كلمة السر وتعميمها": "Change and apply password",
     "كلمة MAC المشتركة": "Shared MAC password",
+    "تأكيد كلمة MAC": "Confirm MAC password",
+    "إظهار كلمة السر": "Show password",
+    "اكتب كلمة السر مرتين للتحقق.": "Enter the password twice to verify it.",
+    "كلمتا السر متطابقتان.": "The passwords match.",
     "مراقبة تلقائية": "Automatic monitoring",
+    "تحويل المنافذ NAT": "Port Forwarding",
+    "واجهة WAN": "WAN interface",
+    "عنوان WAN": "WAN address",
+    "البروتوكول": "Protocol",
+    "المنفذ الخارجي": "External port",
+    "عنوان الجهاز": "Device address",
+    "المنفذ الداخلي": "Internal port",
+    "إضافة تحويل منفذ": "Add port forwarding",
+    "تعديل التحويل المحدد": "Edit selected forwarding",
+    "حذف التحويل المحدد": "Delete selected forwarding",
+    "تحديث التحويلات": "Refresh rules",
+    "أضف تحويل TCP من واجهة WAN إلى جهاز داخلي. يتحقق التطبيق من عدم تكرار المنفذ ومن وجود مسار للجهاز قبل الإضافة.": "Add a TCP forwarding rule from a WAN interface to an internal device. The app checks for port conflicts and a route to the device before applying it.",
+    "أضف أو عدّل أو احذف تحويل TCP من واجهة WAN. يتحقق التطبيق من التعارض والمسار، ويعيد قراءة الراوتر بعد كل تغيير.": "Add, edit, or delete a TCP forwarding rule from a WAN interface. The app checks conflicts and routing, then rereads the router after every change.",
+    "أضف قاعدة تحويل المنفذ": "Add port forwarding rule",
+    "تعديل تحويل المنفذ": "Edit port forwarding rule",
+    "حذف تحويل المنفذ": "Delete port forwarding rule",
+    "واجهة الإنترنت": "Internet interface",
+    "TCP فقط (تم التحقق على هذا الراوتر)": "TCP only (verified on this router)",
+    "مثال: 65010": "Example: 65010",
+    "مثال: 10.0.20.210": "Example: 10.0.20.210",
+    "سيضيف التطبيق: TCP من منفذ WAN الخارجي إلى منفذ الجهاز الداخلي. لا تضع جهازاً داخلياً في شبكة WAN نفسها.": "The app will forward TCP from the WAN external port to the device internal port. Do not place the internal device on the same WAN network.",
+    "سيستبدل التطبيق القاعدة بعد التحقق، ويعيد القديمة تلقائياً إن تعذر إنشاء البديل.": "The app will replace the rule after verification and automatically restore the old rule if the replacement cannot be created.",
+    "حفظ والتحقق": "Save and verify",
+    "اختر واجهة الإنترنت أولاً.": "Choose an internet interface first.",
+    "رقم المنفذ يجب أن يكون بين 1 و65535.": "Port number must be between 1 and 65535.",
+    "عنوان الجهاز الداخلي غير صالح.": "Internal device address is invalid.",
+    "لا يمكن أن يكون الجهاز الداخلي في شبكة WAN نفسها.": "The internal device cannot be in the same WAN network.",
+    "هذا المنفذ محجوز بالفعل للتحويل نفسه.": "This port forwarding rule already exists.",
+    "المنفذ الخارجي مستخدم بالفعل لتحويل آخر: %s": "External port is already used by another rule: %s",
+    "لا يوجد مسار معروف إلى الجهاز الداخلي.": "No known route to the internal device.",
+    "نُفذت القاعدة لكن لم تظهر عند إعادة القراءة.": "The rule was sent but did not appear after rereading.",
+    "أُضيف التحويل وتحقق التطبيق منه وحُفظ في الراوتر.": "Port forwarding was added, verified, and saved on the router.",
+    "أُضيف التحويل وتحقق التطبيق منه، لكن تعذر حفظ إعداد بدء التشغيل.": "Port forwarding was added and verified, but saving the startup configuration failed.",
+    "عُدّل التحويل وتحقق التطبيق منه وحُفظ في الراوتر.": "Port forwarding was edited, verified, and saved on the router.",
+    "حُذف التحويل وتحقق التطبيق من اختفائه وحُفظ في الراوتر.": "Port forwarding was deleted, confirmed absent, and saved on the router.",
+    "لم تتغير بيانات التحويل.": "The forwarding rule was unchanged.",
+    "لم تعد القاعدة المحددة موجودة على الراوتر. حدّث التحويلات ثم حاول مجدداً.": "The selected rule no longer exists on the router. Refresh rules and try again.",
+    "لم يتأكد التطبيق من حذف التحويل القديم؛ لم تُنشأ القاعدة البديلة.": "The app could not confirm removal of the old forwarding rule, so no replacement was created.",
+    "تعذر إنشاء التحويل البديل؛ أعاد التطبيق التحويل القديم.": "The replacement forwarding rule could not be created; the old rule was restored.",
+    "تعذر إنشاء التحويل البديل وتعذر استرجاع التحويل القديم. راجع سجل الأوامر فوراً.": "The replacement could not be created and the old rule could not be restored. Review the command log immediately.",
     "أجهزة موثوقة": "Trusted devices",
     "حسابات بوابة": "Portal accounts",
     "متصلون الآن": "Online users",
@@ -221,6 +313,13 @@ _TEXT_BY_ARABIC.update({
     "حفظ إعداد الراوتر تلقائياً": "Save router configuration automatically",
     "فصل المحدد": "Disconnect selected",
     "مزامنة Firebase الآن": "Sync Firebase now",
+    "تخزين محلي": "Local storage",
+    "جارٍ مزامنة البيانات…": "Syncing data…",
+    "المزامنة معلّقة؛ البيانات محفوظة محلياً": "Sync pending; data saved locally",
+    "تمت المزامنة؛ حُفظت نسخ التعارض للاسترجاع": "Synced; conflict copies saved for recovery",
+    "تغييرات محفوظة؛ بانتظار المزامنة": "Changes saved; sync pending",
+    "البيانات متزامنة": "Data synchronized",
+    "Firebase أساسي: مزامنة تلقائية بين الأجهزة مع حفظ محلي ونسخ للاسترجاع.": "Firebase primary: automatic device sync with local storage and recovery copies.",
     "استيراد بيانات اعتماد Firebase": "Import Firebase credentials",
     "ملف Firebase service account": "Firebase service account file",
     "لم يتم استيراد ملف Firebase بعد.": "No Firebase credential file has been imported.",
@@ -251,6 +350,29 @@ _TEXT_BY_ARABIC.update({
     "تغيير كلمة السر": "Change password",
     "تأكيد تغيير كلمة السر": "Confirm password change",
     "نسخ": "Copy",
+})
+
+# The application-policy reader is intentionally bilingual too.  Keeping these
+# labels in the same translation adapter prevents a newly added safety screen
+# from silently breaking the English-only UI contract.
+_TEXT_BY_ARABIC.update({
+    "راجع المجموعة وACL وسياسة التطبيقات المرتبطة بالواجهة قبل أن تغيّر أي قاعدة.":
+        "Review the group, ACL and interface application policy before changing any rule.",
+    "واجهة تطبيق السياسة": "Policy interface",
+    "التطبيقات والتواقيع": "Applications & signatures",
+    "ابحث عن تطبيق أو توقيع…": "Search applications or signatures…",
+    "التطبيق / التوقيع": "Application / signature",
+    "الفئة": "Category",
+    "الحالة الفعلية": "Effective state",
+    "مصدر القرار": "Decision source",
+    "شرح المحدد": "Explain selection",
+    "حظر المحدد": "Block selected",
+    "السماح للمحدد": "Allow selected",
+    "نسخ تقرير السياسة": "Copy policy report",
+    "يعرض التطبيق ما يقرأه من الراوتر؛ لا يغيّر أي قاعدة من هذه الشاشة.":
+        "Shows what the router reports; this screen does not change a rule.",
+    "تم نسخ تقرير السياسة": "Policy report copied",
+    "تفاصيل التطبيق": "Application details",
 })
 
 
@@ -362,6 +484,7 @@ SURFACE_EN = {
     "groups": ("Permission Groups", ("Group", "ACL", "Members")),
     "settings": ("Settings", ()),
     "log": ("Command Log", ()),
+    "nat": ("Port Forwarding", ("WAN interface", "WAN address", "Protocol", "External port", "Device address", "Internal port")),
 }
 
 
@@ -472,9 +595,20 @@ class ReadController:
         self.db = legacy.LocalDB()
         self.router = legacy.RouterSession(self._write_router_log)
         self.users, self.groups, self.online, self.states = {}, {}, [], {}
+        # Raw policy components are kept separately from the simple group list.
+        # A group ACL is not an interface traffic-policy binding.
+        self.application_config = {}
         self.vlans, self.vlan_state, self.vlan_overlap = [], None, None
         self.mgmt_state, self.mgmt_rows, self.wan_lines = None, [], []
+        self.nat_rules, self.nat_interfaces = [], []
         self.firebase = legacy.FirebaseSync(self.settings)
+        self._firebase_dirty = True
+        self.firebase_error = ""
+        self.firebase_conflicts = self.db.data.get(cloud_merge.META_KEY, {}).get("conflicts", 0)
+        self.db.on_save = self._on_local_saved
+
+    def _on_local_saved(self):
+        self._firebase_dirty = True
 
     def _write_router_log(self, text):
         """يحفظ مسار Qt ذاته في السجل، من دون أسرار قابلة للقراءة."""
@@ -494,7 +628,9 @@ class ReadController:
         if not self.router.connected:
             return
         self.users = legacy.parse_local_users(self.router.read_aaa())
-        self.groups = legacy.parse_groups(self.router.read_groups(), self.router.read_group_acls())
+        group_config = self.router.read_group_acls()
+        self.groups = legacy.parse_groups(self.router.read_groups(), group_config)
+        self.application_config = legacy.parse_application_policy_config(group_config)
         self.online = legacy.parse_online(self.router.read_online())
         self.states = self.router.read_local_user_states()
 
@@ -504,6 +640,21 @@ class ReadController:
             return []
         self.online = legacy.parse_online(self.router.read_online())
         return self.online
+
+    def block_application(self, policy, application):
+        result = legacy.ApplicationPolicyOperations(
+            self.router, self.settings.get("auto_save_config", True)).block(policy, application)
+        if result.ok:
+            self.refresh()
+        return result
+
+    def allow_application(self, policy, application, allow_bundle=False):
+        result = legacy.ApplicationPolicyOperations(
+            self.router, self.settings.get("auto_save_config", True)).allow(
+                policy, application, allow_bundle)
+        if result.ok:
+            self.refresh()
+        return result
 
     def refresh_vlans(self, selected_vid=""):
         """يحدّث قائمة VLAN ثم يقرأ الشبكة المختارة من قارئ المحرك المشترك."""
@@ -589,6 +740,26 @@ class ReadController:
         result = legacy.VlanSessionOperations(self.router, self.db).disconnect(
             self.vlan_state, macs)
         if result.code != "router_error" and self.vlan_state:
+            self.select_vlan(self.vlan_state.get("vid", ""))
+        return result
+
+    def exclude_dhcp_range(self, start, end, disconnect_leases=False):
+        """يستبعد نطاقاً من DHCP للشبكة المحددة ويعيد قراءة النتيجة."""
+        result = legacy.DhcpPoolOperations(
+            self.router, self.db, self.settings.get("auto_save_config", True)).exclude_range(
+                self.vlan_state, start, end, disconnect_leases)
+        if result.code not in {"router_error", "no_dhcp", "bad_range", "outside_network",
+                               "overlap_excluded", "binding_in_range", "not_confirmed"} and self.vlan_state:
+            self.select_vlan(self.vlan_state.get("vid", ""))
+        return result
+
+    def bind_vlan_dhcp(self, mac, ip, description="", disconnect=False):
+        """ينشئ DHCP static-bind من الجهاز المحدد دون صلاحيات إدارة إضافية."""
+        result = legacy.DhcpPoolOperations(
+            self.router, self.db, self.settings.get("auto_save_config", True)).bind(
+                self.vlan_state, mac, ip, description, disconnect)
+        if result.code not in {"router_error", "no_dhcp", "bad_mac", "outside_network",
+                               "address_excluded", "ip_in_use", "mac_bound", "not_confirmed"} and self.vlan_state:
             self.select_vlan(self.vlan_state.get("vid", ""))
         return result
 
@@ -819,6 +990,42 @@ class ReadController:
             legacy.save_settings(self.settings)
         return self.wan_lines
 
+    def refresh_nat(self):
+        """تحميل تحويلات المنافذ وواجهات WAN المتاحة، بلا أي كتابة."""
+        self.nat_rules, self.nat_interfaces = self.router.read_static_nat()
+        return self.nat_rules
+
+    def add_static_nat(self, interface, external_port, inside_ip, inside_port):
+        result = legacy.StaticNatOperations(
+            self.router, self.settings.get("auto_save_config", True)).create(
+                interface, external_port, inside_ip, inside_port)
+        if result.ok:
+            self.refresh_nat()
+            rule = result.data["rule"]
+            self.db.log("nat_add", "%s/%s" % (rule["interface"], rule["external_port"]),
+                        "%s:%s/tcp" % (rule["inside_ip"], rule["inside_port"]))
+        return result
+
+    def edit_static_nat(self, original, interface, external_port, inside_ip, inside_port):
+        result = legacy.StaticNatOperations(
+            self.router, self.settings.get("auto_save_config", True)).edit(
+                original, interface, external_port, inside_ip, inside_port)
+        if result.ok:
+            self.refresh_nat()
+            rule = result.data["rule"]
+            self.db.log("nat_edit", "%s/%s" % (rule["interface"], rule["external_port"]),
+                        "%s:%s/tcp" % (rule["inside_ip"], rule["inside_port"]))
+        return result
+
+    def delete_static_nat(self, rule):
+        result = legacy.StaticNatOperations(
+            self.router, self.settings.get("auto_save_config", True)).delete(rule)
+        if result.ok:
+            self.refresh_nat()
+            self.db.log("nat_delete", "%s/%s" % (rule["interface"], rule["external_port"]),
+                        "%s:%s/tcp" % (rule["inside_ip"], rule["inside_port"]))
+        return result
+
     def withdraw_wan(self, gw):
         line = next((x for x in self.wan_lines if x["gw"] == gw), None)
         if not line:
@@ -865,8 +1072,7 @@ class ReadController:
             self.settings["storage_mode"] = previous_mode
             legacy.save_settings(self.settings)
             return legacy.ActionResult(False, "bad_config")
-        if previous_mode != "firebase" and self.settings["storage_mode"] == "firebase":
-            return legacy.ActionResult(True, "firebase_setup_required")
+        self._firebase_dirty = True
         return legacy.ActionResult(True, "saved")
 
     def rotate_mac_password(self, profile, password):
@@ -891,7 +1097,6 @@ class ReadController:
         return self.router.read_mac_profiles()
 
     def _firebase_ready(self):
-        self.firebase = legacy.FirebaseSync(self.settings)
         if self.settings.get("storage_mode") != "firebase":
             return legacy.ActionResult(False, "storage_mode_local",
                                        error="Firebase is disabled while Local-only storage is selected.")
@@ -903,66 +1108,110 @@ class ReadController:
         """Keep a recoverable copy before cloud data replaces the local cache."""
         backup_dir = os.path.join(os.path.dirname(self.db.path), "backups")
         os.makedirs(backup_dir, exist_ok=True)
-        stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%S.%fZ")
         destination = os.path.join(backup_dir, "ar730_devices_before_firebase_%s.json" % stamp)
-        with open(destination, "w", encoding="utf-8") as handle:
-            json.dump(self.db.data, handle, ensure_ascii=False, indent=2)
+        legacy.atomic_json_write(destination, self.db.data)
         return destination
 
-    def firebase_download(self):
+    def firebase_job(self):
+        """Capture immutable inputs; the network worker never touches live app data."""
         problem = self._firebase_ready()
         if problem:
             return problem
-        try:
-            state = self.firebase.pull()
-            if not state or not isinstance(state.get("db"), dict):
-                return legacy.ActionResult(False, "remote_empty",
-                                           error="Firebase does not contain shared application data yet.")
-            backup = self._backup_local_database()
-            self._apply_firebase_state(state)
-            return legacy.ActionResult(True, "downloaded", data={"backup": backup})
-        except Exception as exc:
-            self.settings["firebase_pending_sync"] = True
-            legacy.save_settings(self.settings)
-            return legacy.ActionResult(False, "offline", error=str(exc))
+        transport = getattr(self, "_firebase_transport", None)
+        credential_keys = ("firebase_api_key", "firebase_project_id", "firebase_email",
+                           "firebase_password", "firebase_service_account_file")
+        if transport is None or any(self.settings.get(k) != transport.settings.get(k) for k in credential_keys):
+            transport = legacy.FirebaseSync(copy.deepcopy(self.settings))
+            self._firebase_transport = transport
+        endpoint = transport._url()
+        local = self.firebase_snapshot()
+        checkpoint = self.db.data.get(cloud_merge.META_KEY, {})
+        base = checkpoint.get("base") if checkpoint.get("endpoint") == endpoint else None
+        if base is not None:
+            cloud_merge.validate(base)
+        return {"local": local, "endpoint": endpoint,
+                "run": lambda: cloud_merge.synchronize(transport, local, base)}
 
-    def firebase_upload(self):
-        problem = self._firebase_ready()
-        if problem:
-            return problem
+    def firebase_snapshot(self):
+        local = cloud_merge.snapshot(self.db.data, self.settings)
+        checkpoint = self.db.data.get(cloud_merge.META_KEY, {})
+        local["deleted"] = copy.deepcopy(checkpoint.get("base", {}).get("deleted", []))
+        return local
+
+    def firebase_accept(self, job, result):
+        """Apply only on the UI thread while no router-operation worker is writing."""
+        if self.settings.get("storage_mode") != "firebase" or self.firebase._url() != job["endpoint"]:
+            self._firebase_dirty = True
+            return legacy.ActionResult(False, "configuration_changed")
+        current = self.firebase_snapshot()
+        committed = cloud_merge.validate(result["state"])
+        # Edits made during the request remain pending. They must not be replaced
+        # by the acknowledged snapshot, even if they affect the same field.
+        projected, unused = cloud_merge.merge(job["local"], committed, current)
+        changed = projected["db"] != current["db"] or projected["settings"] != current["settings"]
+        backup = self._backup_local_database() if changed or cloud_merge.META_KEY not in self.db.data else None
+        new_data = copy.deepcopy(projected["db"])
+        conflict_count = self.firebase_conflicts + len(result["conflicts"])
+        new_data[cloud_merge.META_KEY] = {"endpoint": job["endpoint"], "base": committed,
+                                        "conflicts": conflict_count}
+        old_data, old_settings = self.db.data, copy.deepcopy(self.settings)
+        callback = self.db.on_save
         try:
-            self.settings["firebase_last_sync"] = self.firebase.push(self.db.data)
-            self.settings["firebase_pending_sync"] = False
+            for key in cloud_merge.SHARED_SETTINGS:
+                if key not in projected["settings"]:
+                    self.settings.pop(key, None)
+            self.settings.update(projected["settings"])
+            self.settings["firebase_last_sync"] = result["saved_at"]
+            self.settings["firebase_pending_sync"] = projected != committed
+            # Settings precede the DB/checkpoint. A crash can resend changes but
+            # cannot acknowledge DB changes which were never saved.
+            if self.settings != old_settings:
+                legacy.save_settings(self.settings)
+            self.db.data = new_data
+            self.db.on_save = None
+            if new_data != old_data:
+                self.db.save()
+        except Exception:
+            self.db.data = old_data
+            self.settings.clear()
+            self.settings.update(old_settings)
+            raise
+        finally:
+            self.db.on_save = callback
+        self._firebase_dirty = projected != committed
+        self.firebase_error = ""
+        self.firebase_conflicts = conflict_count
+        return legacy.ActionResult(True, "synced", data={"backup": backup, "changed": changed,
+                                                       "conflicts": self.firebase_conflicts})
+
+    def firebase_failure(self, error):
+        self.firebase_error = str(error)
+        self._firebase_dirty = True
+        self.settings["firebase_pending_sync"] = True
+        try:
             legacy.save_settings(self.settings)
-            return legacy.ActionResult(True, "uploaded")
-        except Exception as exc:
-            self.settings["firebase_pending_sync"] = True
-            legacy.save_settings(self.settings)
-            return legacy.ActionResult(False, "offline", error=str(exc))
+        except OSError:
+            # Pending DB edits and the old checkpoint are already durable;
+            # persisting a cosmetic error flag must not stop automatic retry.
+            pass
 
     def firebase_sync(self):
-        """Compatibility entry point: cloud mode always reads by default."""
-        return self.firebase_download()
+        try:
+            job = self.firebase_job()
+            if isinstance(job, legacy.ActionResult):
+                return job
+            return self.firebase_accept(job, job["run"]())
+        except Exception as exc:
+            self.firebase_failure(exc)
+            return legacy.ActionResult(False, "offline", error=str(exc))
 
-    def _apply_firebase_state(self, state):
-        """Hydrate an empty installation without triggering an upload callback."""
-        remote_settings = state.get("settings", {})
-        if isinstance(remote_settings, dict):
-            self.settings.update({key: value for key, value in remote_settings.items()
-                                  if key not in legacy.FIREBASE_LOCAL_KEYS})
-        remote_db = state.get("db", {})
-        if isinstance(remote_db, dict):
-            self.db.data = {
-                key: remote_db.get(key, {} if key != "history" else [])
-                if isinstance(remote_db.get(key, {} if key != "history" else []),
-                              list if key == "history" else dict)
-                else ( [] if key == "history" else {} )
-                for key in legacy.FirebaseSync.DB_KEYS
-            }
-            self.db.save()
-        self.settings["firebase_last_sync"] = state.get("saved_at", "")
-        self.settings["firebase_pending_sync"] = False
-        legacy.save_settings(self.settings)
+    # Compatibility callers now use the same safe merge in either direction.
+    def firebase_download(self):
+        return self.firebase_sync()
+
+    def firebase_upload(self):
+        return self.firebase_sync()
 
     def import_firebase_service_account(self, source_path):
         """يستورد ملف service-account محلياً من دون وضع مفتاحه في الإعدادات."""
@@ -991,6 +1240,8 @@ class ReadController:
                                   "firebase_project_id": account["project_id"]})
             legacy.save_settings(self.settings)
             self.firebase = legacy.FirebaseSync(self.settings)
+            self._firebase_transport = None
+            self._firebase_dirty = True
             return legacy.ActionResult(True, "credentials_imported",
                                        data={"project_id": account["project_id"]})
         except OSError:
@@ -1024,6 +1275,9 @@ class ConnectDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+        # The address and user name are remembered; begin every new connection at
+        # the only credential that must be typed each time.
+        self.password.setFocus()
 
 
 class AddDeviceDialog(QDialog):
@@ -1142,6 +1396,14 @@ class RotateMacPasswordDialog(QDialog):
         form.addRow("ملف MAC", self.profile)
         form.addRow("كلمة السر الجديدة", self.password)
         form.addRow("تأكيد كلمة السر", self.password_confirm)
+        self.show_password = FullRowCheckBox("إظهار كلمة السر")
+        self.show_password.toggled.connect(self._set_password_visibility)
+        form.addRow(self.show_password)
+        self.password_match = QLabel("اكتب كلمة السر مرتين للتحقق.", objectName="subtle")
+        self.password_match.setWordWrap(True)
+        form.addRow(self.password_match)
+        self.password.textChanged.connect(self._update_password_match)
+        self.password_confirm.textChanged.connect(self._update_password_match)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.button(QDialogButtonBox.StandardButton.Save).setText("متابعة")
@@ -1149,6 +1411,23 @@ class RotateMacPasswordDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
+
+    def _set_password_visibility(self, visible):
+        mode = QLineEdit.Normal if visible else QLineEdit.Password
+        self.password.setEchoMode(mode)
+        self.password_confirm.setEchoMode(mode)
+
+    def _update_password_match(self):
+        password, confirmation = self.password.text(), self.password_confirm.text()
+        if not password and not confirmation:
+            self.password_match.setText("اكتب كلمة السر مرتين للتحقق.")
+            self.password_match.setStyleSheet("")
+        elif password == confirmation:
+            self.password_match.setText("كلمتا السر متطابقتان.")
+            self.password_match.setStyleSheet("color: #067647; font-weight: 700;")
+        else:
+            self.password_match.setText("كلمتا السر غير متطابقتين.")
+            self.password_match.setStyleSheet("color: #B42318; font-weight: 700;")
 
 
 class EditDeviceDialog(QDialog):
@@ -1298,6 +1577,82 @@ class RevokePortalDialog(QDialog):
         form.addRow(buttons)
 
 
+class ExcludeDhcpRangeDialog(QDialog):
+    """An exclusion is a pool policy; the optional cut is deliberately opt-in."""
+    def __init__(self, state, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("استثناء نطاق من DHCP")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumWidth(500)
+        form = QFormLayout(self)
+        form.setContentsMargins(24, 22, 24, 22)
+        form.setSpacing(12)
+        net = (state or {}).get("net") or {}
+        self.start, self.end = QLineEdit(), QLineEdit()
+        placeholder = ("%s to %s" if ACTIVE_LANGUAGE == "en" else "%s إلى %s") % (
+            net.get("ip", tr("عنوان البداية")), tr("عنوان النهاية"))
+        self.start.setPlaceholderText(placeholder)
+        self.end.setPlaceholderText("عنوان النهاية")
+        form.addRow("أول عنوان", self.start)
+        form.addRow("آخر عنوان", self.end)
+        self.disconnect = FullRowCheckBox("فصل جلسات DHCP المطابقة بعد الاستثناء")
+        self.disconnect.setChecked(False)
+        self.disconnect.setEnabled(bool((state or {}).get("nac")))
+        form.addRow(self.disconnect)
+        note = QLabel(
+            "لن يُوزع DHCP هذا النطاق بعد الحفظ. فصل الجلسات اختياري ويقتصر على الأجهزة "
+            "التي يطابق MAC الخاص بها إيجار DHCP؛ لا تُفصل الأجهزة ذات العنوان الثابت اليدوي.")
+        note.setWordWrap(True)
+        form.addRow(note)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("استثناء والتحقق")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("إلغاء")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+
+class DhcpBindingDialog(QDialog):
+    """One simple reservation: DHCP only, never the management ARP/ACL bundle."""
+    def __init__(self, mac, state, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("ربط IP ثابت بـ MAC")
+        self.setLayoutDirection(Qt.RightToLeft)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumWidth(500)
+        form = QFormLayout(self)
+        form.setContentsMargins(24, 22, 24, 22)
+        form.setSpacing(12)
+        address = QLineEdit(legacy.mac_pretty(legacy.normalize_mac(mac)))
+        address.setReadOnly(True)
+        self.ip, self.description = QLineEdit(), QLineEdit()
+        net = (state or {}).get("net") or {}
+        self.ip.setPlaceholderText(("Example: %s" if ACTIVE_LANGUAGE == "en" else "مثال: %s") %
+                                   net.get("ip", "10.0.20.50"))
+        self.description.setPlaceholderText("اختياري، أحرف إنجليزية وأرقام")
+        form.addRow("عنوان الماك", address)
+        form.addRow("عنوان IP المطلوب", self.ip)
+        form.addRow("وصف الراوتر", self.description)
+        self.disconnect = FullRowCheckBox("فصل الجلسة بعد الربط لتجديد العنوان")
+        self.disconnect.setChecked(False)
+        self.disconnect.setEnabled(bool((state or {}).get("nac")))
+        form.addRow(self.disconnect)
+        note = QLabel(
+            "الربط يحجز عنوان DHCP لهذا MAC فقط. لا يضيف ARP ثابتاً أو صلاحية إدارة، "
+            "ولا يمكن اختيار عنوان مستثنى من مجمّع DHCP.")
+        note.setWordWrap(True)
+        form.addRow(note)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Save).setText("ربط والتحقق")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("إلغاء")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+
 class DisconnectOnlineDialog(QDialog):
     """تأكيد قصير يحدد الجلسة التي ستفصل، لا الحساب الدائم."""
     def __init__(self, session, parent=None):
@@ -1394,12 +1749,65 @@ class RevokeDeviceDialog(QDialog):
         form.addRow(buttons)
 
 
+class AddStaticNatDialog(QDialog):
+    """حوار صغير يقابل صيغة NAT الثابتة المتحقق منها على AR730."""
+    def __init__(self, interfaces, parent=None, rule=None):
+        super().__init__(parent)
+        editing = rule is not None
+        self.setWindowTitle("تعديل تحويل المنفذ" if editing else "أضف قاعدة تحويل المنفذ")
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setMinimumWidth(490)
+        form = QFormLayout(self)
+        form.setContentsMargins(24, 22, 24, 22)
+        form.setSpacing(12)
+        self.interface = QComboBox()
+        for item in interfaces:
+            label = "%s — %s/%s" % (item["iface"], item.get("ip") or "—", item.get("len") or "—")
+            self.interface.addItem(label, item["iface"])
+        self.protocol = QLineEdit("TCP")
+        self.protocol.setReadOnly(True)
+        self.external_port = QLineEdit()
+        self.external_port.setPlaceholderText("مثال: 65010")
+        self.inside_ip = QLineEdit()
+        self.inside_ip.setPlaceholderText("مثال: 10.0.20.210")
+        self.inside_port = QLineEdit()
+        self.inside_port.setPlaceholderText("مثال: 4370")
+        if rule:
+            selected = self.interface.findData(rule.get("interface"))
+            if selected >= 0:
+                self.interface.setCurrentIndex(selected)
+            self.external_port.setText(str(rule.get("external_port") or ""))
+            self.inside_ip.setText(rule.get("inside_ip") or "")
+            self.inside_port.setText(str(rule.get("inside_port") or ""))
+        form.addRow("واجهة الإنترنت", self.interface)
+        form.addRow("البروتوكول", self.protocol)
+        form.addRow("المنفذ الخارجي", self.external_port)
+        form.addRow("عنوان الجهاز", self.inside_ip)
+        form.addRow("المنفذ الداخلي", self.inside_port)
+        notice = QLabel("سيستبدل التطبيق القاعدة بعد التحقق، ويعيد القديمة تلقائياً إن تعذر إنشاء البديل." if editing else
+                        "سيضيف التطبيق: TCP من منفذ WAN الخارجي إلى منفذ الجهاز الداخلي. لا تضع جهازاً داخلياً في شبكة WAN نفسها.")
+        notice.setWordWrap(True)
+        form.addRow(notice)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("حفظ والتحقق" if editing else "إضافة والتحقق")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("إلغاء")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, controller, demo=False):
         super().__init__()
         self.c, self.demo, self.workers = controller, demo, []
         self._busy = False
         self._busy_widgets = []
+        self._closing = False
+        self._cloud_worker = None
+        self._cloud_reply = None
+        self._next_cloud_poll = 0
+        self._cloud_failures = 0
         self.lang = self.c.settings.get("qt_ui_lang", "en")
         if self.lang not in {"ar", "en"}:
             self.lang = "en"
@@ -1421,8 +1829,96 @@ class MainWindow(QMainWindow):
         # Check asynchronously after the window is usable; offline operation
         # remains fully supported and intentionally produces no warning.
         QTimer.singleShot(1500, self._start_update_check)
+        self.firebase_timer = QTimer(self)
+        self.firebase_timer.timeout.connect(self._auto_firebase_sync)
+        self.firebase_timer.start(1000)
+        QTimer.singleShot(0, self._auto_firebase_sync)
+
+    def _auto_firebase_sync(self):
+        if self._closing or self.demo or self._busy or self._cloud_worker:
+            return
+        if any(worker.isRunning() for worker in self.workers):
+            return
+        if self._cloud_reply is not None:
+            job, result, error = self._cloud_reply
+            self._cloud_reply = None
+            try:
+                if error:
+                    raise RuntimeError(error)
+                accepted = self.c.firebase_accept(job, result)
+                if accepted.ok and accepted.data["changed"] and self.c.router.connected:
+                    # Cloud metadata alone cannot certify a router account's
+                    # current state. Read the router again before painting it.
+                    self._run(self.c.refresh)
+                self._cloud_failures = 0
+            except Exception as exc:
+                self.c.firebase_failure(exc)
+                self._cloud_failures += 1
+                self._next_cloud_poll = time.monotonic() + min(60, 5 * 2 ** min(self._cloud_failures, 4))
+            self._render()
+            return
+        if time.monotonic() < self._next_cloud_poll:
+            return
+        if self.c.settings.get("storage_mode") != "firebase":
+            return
+        try:
+            job = self.c.firebase_job()
+            if isinstance(job, legacy.ActionResult):
+                self.c.firebase_error = job.error or "Firebase credentials are incomplete."
+                self._next_cloud_poll = time.monotonic() + 30
+                self._render_firebase_status()
+                return
+        except Exception as exc:
+            self.c.firebase_failure(exc)
+            self._next_cloud_poll = time.monotonic() + 30
+            self._render_firebase_status()
+            return
+        worker = Worker(job["run"])
+        self._cloud_worker = worker
+        self.workers.append(worker)
+        worker.done.connect(lambda result: self._queue_cloud_reply(worker, job, result, None))
+        worker.failed.connect(lambda error: self._queue_cloud_reply(worker, job, None, error))
+        self._next_cloud_poll = time.monotonic() + 5
+        self._render_firebase_status()
+        worker.start()
+
+    def _queue_cloud_reply(self, worker, job, result, error):
+        self._cloud_reply = (job, result, error)
+        # QThread.done can arrive before run() has returned. Keep the thread
+        # referenced until Qt's finished signal confirms it can be destroyed.
+        worker.finished.connect(lambda: self._release_cloud_worker(worker))
+        if worker.isFinished():
+            self._release_cloud_worker(worker)
+
+    def _release_cloud_worker(self, worker):
+        if self._cloud_worker is not worker:
+            return
+        if worker in self.workers:
+            self.workers.remove(worker)
+        self._cloud_worker = None
+        self._auto_firebase_sync()
+
+    def _render_firebase_status(self):
+        if not hasattr(self, "cloud_status"):
+            return
+        if self.c.settings.get("storage_mode") != "firebase":
+            text = "تخزين محلي"
+        elif self._cloud_worker:
+            text = "جارٍ مزامنة البيانات…"
+        elif self.c.firebase_error:
+            text = "المزامنة معلّقة؛ البيانات محفوظة محلياً"
+        elif self.c.firebase_conflicts:
+            text = "تمت المزامنة؛ حُفظت نسخ التعارض للاسترجاع"
+        elif self.c._firebase_dirty:
+            text = "تغييرات محفوظة؛ بانتظار المزامنة"
+        else:
+            text = "البيانات متزامنة"
+        self.cloud_status.setText(tr(text))
+        self.cloud_status.setToolTip(self.c.firebase_error or self.c.settings.get("firebase_last_sync", ""))
 
     def _start_update_check(self):
+        if self._closing or self.demo:
+            return
         worker = Worker(lambda: legacy.check_for_update(legacy.APP_VERSION))
         self.workers.append(worker)
         worker.done.connect(lambda update: self._finish_update_check(worker, update))
@@ -1490,6 +1986,10 @@ class MainWindow(QMainWindow):
             button.clicked.connect(lambda checked=False, i=index: self._select_nav(i))
             side.addWidget(button)
             self.nav.append(button)
+        # Keep page indices stable while placing Settings immediately above Support.
+        settings_button = self.nav[1 + list(self.surface).index("settings")]
+        side.removeWidget(settings_button)
+        side.insertWidget(side.indexOf(self.nav[-1]), settings_button)
         side.addStretch()
         side.addSpacing(12)
         afz_logo = QLabel(objectName="afzLogo")
@@ -1521,6 +2021,10 @@ class MainWindow(QMainWindow):
         self.connection.setFont(connection_font)
         self.connection.setAlignment(Qt.AlignCenter)
         side.addWidget(self.connection)
+        self.cloud_status = QLabel(objectName="subtle")
+        self.cloud_status.setWordWrap(True)
+        self.cloud_status.setAlignment(Qt.AlignCenter)
+        side.addWidget(self.cloud_status)
         outer.addWidget(sidebar)
 
         content = QWidget()
@@ -1636,6 +2140,91 @@ class MainWindow(QMainWindow):
         layout.addWidget(panel, 1)
         return page
 
+    def _permission_groups_page(self):
+        """A policy reader that makes the three AR730 access layers explicit."""
+        page, layout = self._head(
+            "مجموعات الصلاحيات",
+            "راجع المجموعة وACL وسياسة التطبيقات المرتبطة بالواجهة قبل أن تغيّر أي قاعدة.")
+
+        controls = QFrame(objectName="panel")
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.setContentsMargins(18, 14, 18, 14)
+        controls_layout.addWidget(QLabel("مجموعة الصلاحيات"))
+        self.application_group = QComboBox()
+        self.application_group.setMinimumWidth(180)
+        self.application_group.currentIndexChanged.connect(self._render_permission_groups)
+        controls_layout.addWidget(self.application_group)
+        controls_layout.addSpacing(14)
+        controls_layout.addWidget(QLabel("واجهة تطبيق السياسة"))
+        self.application_interface = QComboBox()
+        self.application_interface.setMinimumWidth(190)
+        self.application_interface.setToolTip(
+            "هذه واجهة شبكة مستقلة؛ لا ينشئ الراوتر ربطاً رسمياً بينها وبين مجموعة AAA.")
+        self.application_interface.currentIndexChanged.connect(self._render_permission_groups)
+        controls_layout.addWidget(self.application_interface)
+        self.refresh_groups = QPushButton("تحديث", objectName="primary")
+        self.refresh_groups.clicked.connect(self._refresh)
+        controls_layout.addWidget(self.refresh_groups)
+        controls_layout.addStretch()
+        layout.addWidget(controls)
+
+        self.application_context = QLabel(objectName="subtle")
+        self.application_context.setWordWrap(True)
+        layout.addWidget(self.application_context)
+
+        app_panel = QFrame(objectName="panel")
+        app_layout = QVBoxLayout(app_panel)
+        app_layout.setContentsMargins(18, 16, 18, 16)
+        top = QHBoxLayout()
+        top.addWidget(QLabel("التطبيقات والتواقيع", objectName="title"))
+        top.addStretch()
+        self.application_search = QLineEdit()
+        self.application_search.setPlaceholderText("ابحث عن تطبيق أو توقيع…")
+        self.application_search.setMinimumWidth(250)
+        top.addWidget(self.application_search)
+        app_layout.addLayout(top)
+        self.application_table = QTableWidget(0, 4)
+        self.application_table.setHorizontalHeaderLabels((
+            "التطبيق / التوقيع", "الفئة", "الحالة الفعلية", "مصدر القرار"))
+        self.application_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.application_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.application_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.application_table.setItemDelegate(NoFocusCellDelegate(self.application_table))
+        self.application_table.verticalHeader().hide()
+        self.application_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.application_table.setToolTip(
+            "يعرض التطبيق ما يقرأه من الراوتر؛ لا تُرسل التغييرات إلا بعد التأكيد.")
+        self.application_search.textChanged.connect(
+            lambda text: self._filter(self.application_table, text))
+        self.application_table.itemSelectionChanged.connect(self._describe_selected_application)
+        app_layout.addWidget(self.application_table, 1)
+        app_actions = QHBoxLayout()
+        self.block_application = QPushButton("حظر المحدد", objectName="danger")
+        self.block_application.clicked.connect(self._block_selected_application)
+        self.allow_application = QPushButton("السماح للمحدد", objectName="primary")
+        self.allow_application.clicked.connect(self._allow_selected_application)
+        self.review_application = QPushButton("شرح المحدد")
+        self.review_application.clicked.connect(self._describe_selected_application)
+        self.copy_application_review = QPushButton("نسخ تقرير السياسة")
+        self.copy_application_review.clicked.connect(self._copy_application_review)
+        app_actions.addWidget(self.block_application)
+        app_actions.addWidget(self.allow_application)
+        app_actions.addWidget(self.review_application)
+        app_actions.addWidget(self.copy_application_review)
+        app_actions.addStretch()
+        app_layout.addLayout(app_actions)
+        layout.addWidget(app_panel, 1)
+
+        self.application_explanation = QLabel(objectName="subtle")
+        self.application_explanation.setWordWrap(True)
+        layout.addWidget(self.application_explanation)
+        # Keep the established table registry stable for shortcuts and the
+        # regression harness; this page's table is the group-policy table.
+        self.tables["groups"] = self.application_table
+        QShortcut(QKeySequence.Copy, self.application_table,
+                  activated=lambda: self._copy_table_selection(self.application_table))
+        return page
+
     def _guide(self):
         """دليل عملي قصير؛ يبدأ به المستخدم قبل إجراء أي تغيير على الراوتر."""
         page, layout = self._head("الدليل والدعم", "دليل تشغيل مختصر يوضح مسار العمل الآمن وقنوات الدعم.")
@@ -1697,7 +2286,7 @@ class MainWindow(QMainWindow):
 
     def _page(self, page_id, item):
         page, layout = self._head(item["title"], "إدارة مباشرة للبيانات والإجراءات المرتبطة بالراوتر.")
-        if page_id in {"devices", "portal", "online", "vlans", "management", "wan", "groups"}:
+        if page_id in {"devices", "portal", "online", "vlans", "management", "wan", "nat"}:
             if page_id == "devices":
                 actions = QHBoxLayout()
                 add = QPushButton("إضافة جهاز", objectName="primary")
@@ -1770,12 +2359,18 @@ class MainWindow(QMainWindow):
                 self.name_vlan_device.clicked.connect(self._name_vlan_device)
                 self.scan_vlan_overlap = QPushButton("فحص التداخل")
                 self.scan_vlan_overlap.clicked.connect(self._scan_vlan_overlap)
+                self.exclude_dhcp_range = QPushButton("استثناء نطاق DHCP")
+                self.exclude_dhcp_range.clicked.connect(self._exclude_dhcp_range)
+                self.bind_vlan_dhcp = QPushButton("ربط IP بـ MAC")
+                self.bind_vlan_dhcp.clicked.connect(self._bind_vlan_dhcp)
                 self.cut_vlan_devices = QPushButton("فصل المحدد", objectName="danger")
                 self.cut_vlan_devices.clicked.connect(self._disconnect_vlan_devices)
                 actions.addWidget(self.vlan_picker)
                 actions.addWidget(self.refresh_vlans)
                 actions.addWidget(self.name_vlan_device)
                 actions.addWidget(self.scan_vlan_overlap)
+                actions.addWidget(self.exclude_dhcp_range)
+                actions.addWidget(self.bind_vlan_dhcp)
                 actions.addWidget(self.cut_vlan_devices)
                 actions.addStretch()
                 layout.addLayout(actions)
@@ -1807,9 +2402,24 @@ class MainWindow(QMainWindow):
                 self.wan_auto.toggled.connect(self._toggle_wan_auto)
                 for button in (self.check_wan, self.withdraw_wan, self.restore_wan, self.copy_wan_report, self.wan_auto): actions.addWidget(button)
                 actions.addStretch(); layout.addLayout(actions)
-            elif page_id == "groups":
-                actions = QHBoxLayout(); self.refresh_groups = QPushButton("تحديث", objectName="primary")
-                self.refresh_groups.clicked.connect(self._refresh); actions.addWidget(self.refresh_groups); actions.addStretch(); layout.addLayout(actions)
+            elif page_id == "nat":
+                hint = QLabel("أضف أو عدّل أو احذف تحويل TCP من واجهة WAN. يتحقق التطبيق من التعارض والمسار، ويعيد قراءة الراوتر بعد كل تغيير.", objectName="subtle")
+                hint.setWordWrap(True)
+                layout.addWidget(hint)
+                actions = QHBoxLayout()
+                self.add_static_nat = QPushButton("إضافة تحويل منفذ", objectName="primary")
+                self.add_static_nat.clicked.connect(self._add_static_nat)
+                self.edit_static_nat = QPushButton("تعديل التحويل المحدد")
+                self.edit_static_nat.clicked.connect(self._edit_static_nat)
+                self.delete_static_nat = QPushButton("حذف التحويل المحدد", objectName="danger")
+                self.delete_static_nat.clicked.connect(self._delete_static_nat)
+                self.refresh_nat = QPushButton("تحديث التحويلات")
+                self.refresh_nat.clicked.connect(self._refresh_nat)
+                actions.addWidget(self.add_static_nat)
+                actions.addWidget(self.edit_static_nat)
+                actions.addWidget(self.delete_static_nat)
+                actions.addWidget(self.refresh_nat)
+                actions.addStretch(); layout.addLayout(actions)
             search = QLineEdit()
             search.setPlaceholderText("بحث في النتائج…")
             layout.addWidget(search)
@@ -1833,9 +2443,18 @@ class MainWindow(QMainWindow):
             QShortcut(QKeySequence.Copy, table,
                       activated=lambda view=table: self._copy_table_selection(view))
             layout.addWidget(panel, 1)
+        elif page_id == "groups":
+            return self._permission_groups_page()
         elif page_id == "settings":
             form = QFormLayout()
             self.setting_mac_password = QLineEdit(); self.setting_mac_password.setEchoMode(QLineEdit.Password)
+            self.setting_mac_password_confirm = QLineEdit(); self.setting_mac_password_confirm.setEchoMode(QLineEdit.Password)
+            self.setting_show_mac_password = FullRowCheckBox("إظهار كلمة السر")
+            self.setting_show_mac_password.toggled.connect(self._set_setting_mac_password_visibility)
+            self.setting_mac_password_status = QLabel("اكتب كلمة السر مرتين للتحقق.", objectName="subtle")
+            self.setting_mac_password_status.setWordWrap(True)
+            self.setting_mac_password.textChanged.connect(self._update_setting_mac_password_match)
+            self.setting_mac_password_confirm.textChanged.connect(self._update_setting_mac_password_match)
             self.setting_autosave = FullRowCheckBox("حفظ إعداد الراوتر تلقائياً")
             self.setting_autosave.setChecked(bool(self.c.settings.get("auto_save_config", True)))
             self.storage_mode = QComboBox()
@@ -1857,7 +2476,11 @@ class MainWindow(QMainWindow):
             self.rotate_mac_password = QPushButton("تغيير كلمة السر وتعميمها")
             self.rotate_mac_password.clicked.connect(self._rotate_mac_password)
             password_layout.addWidget(self.rotate_mac_password)
-            form.addRow("كلمة MAC المشتركة", password_row); form.addRow(self.setting_autosave)
+            form.addRow("كلمة MAC المشتركة", password_row)
+            form.addRow("تأكيد كلمة MAC", self.setting_mac_password_confirm)
+            form.addRow(self.setting_show_mac_password)
+            form.addRow(self.setting_mac_password_status)
+            form.addRow(self.setting_autosave)
             form.addRow("وضع التخزين", self.storage_mode)
             form.addRow(self.storage_mode_hint)
             form.addRow("Firebase API Key", self.setting_firebase_key); form.addRow("Firebase Project ID", self.setting_firebase_project)
@@ -1875,13 +2498,11 @@ class MainWindow(QMainWindow):
             form.addRow("ملف Firebase service account", credential_row)
             layout.addLayout(form)
             actions = QHBoxLayout(); self.save_settings = QPushButton("حفظ الإعدادات", objectName="primary"); self.save_settings.clicked.connect(self._save_settings)
-            self.firebase_download = QPushButton("تنزيل البيانات من Firebase")
-            self.firebase_download.clicked.connect(self._firebase_download)
-            self.firebase_upload = QPushButton("رفع البيانات المحلية إلى Firebase")
-            self.firebase_upload.clicked.connect(self._firebase_upload)
-            self.firebase_sync = self.firebase_download  # compatibility for existing UI callers
+            self.firebase_sync = QPushButton("مزامنة Firebase الآن")
+            self.firebase_sync.clicked.connect(self._firebase_sync)
+            self.firebase_download = self.firebase_upload = self.firebase_sync
             self._update_storage_controls()
-            for button in (self.save_settings, self.firebase_download, self.firebase_upload): actions.addWidget(button)
+            for button in (self.save_settings, self.firebase_sync): actions.addWidget(button)
             actions.addStretch(); layout.addLayout(actions); layout.addStretch()
         elif page_id == "log":
             self.log_text = QTextEdit(objectName="commandLog"); self.log_text.setReadOnly(True); self.log_text.setLayoutDirection(Qt.LeftToRight)
@@ -1999,6 +2620,140 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "فحص التداخل", "حدّث قائمة الشبكات أولاً.")
             return
         self._run(self.c.scan_vlan_overlap, self._show_vlan_overlap_result)
+
+    def _dhcp_network_ready(self, title):
+        if not self.c.router.connected:
+            QMessageBox.information(self, title, "اتصل بالراوتر أولاً.")
+            return False
+        state = self.c.vlan_state or {}
+        if not state:
+            QMessageBox.information(self, title, "حدّث الشبكات واختر شبكة أولاً.")
+            return False
+        if not state.get("iface"):
+            QMessageBox.information(self, title,
+                                    "هذه الشبكة بلا واجهة عنوان على الراوتر، ولا تملك DHCP محلياً.")
+            return False
+        if not state.get("dhcp"):
+            QMessageBox.information(self, title,
+                                    "هذه الشبكة لا تستخدم DHCP من واجهتها على الراوتر.")
+            return False
+        return True
+
+    def _exclude_dhcp_range(self):
+        title = "استثناء نطاق DHCP"
+        if not self._dhcp_network_ready(title):
+            return
+        dialog = ExcludeDhcpRangeDialog(self.c.vlan_state, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        start, end = dialog.start.text().strip(), dialog.end.text().strip()
+        if self.lang == "en":
+            question = ("DHCP will stop distributing addresses from %s to %s on %s."
+                        "\n\nManually static devices will not be disconnected." %
+                        (start or "—", end or "—", self.c.vlan_state.get("iface", "")))
+        else:
+            question = ("سيُمنع DHCP من توزيع العناوين من %s إلى %s على %s."
+                        "\n\nلن تُفصل الأجهزة ذات العنوان الثابت اليدوي." %
+                        (start or "—", end or "—", self.c.vlan_state.get("iface", "")))
+        if dialog.disconnect.isChecked():
+            question += ("\nOnly exactly matching DHCP sessions will be disconnected to renew their address."
+                         if self.lang == "en"
+                         else "\nستُفصل فقط جلسات DHCP المطابقة لتجديد عنوانها.")
+        choice = QMessageBox.question(self, title, question,
+                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if choice != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.exclude_dhcp_range(
+            start, end, dialog.disconnect.isChecked()), self._show_exclude_dhcp_result)
+
+    def _show_exclude_dhcp_result(self, result):
+        messages = {
+            "excluded": (QMessageBox.Information,
+                         "تم استثناء النطاق والتحقق من إعداد الراوتر."),
+            "unchanged": (QMessageBox.Information, "هذا النطاق مستثنى بالفعل."),
+            "no_dhcp": (QMessageBox.Warning, "الشبكة المحددة لا تملك DHCP محلياً."),
+            "bad_range": (QMessageBox.Warning, "أدخل نطاق IP صحيحاً بترتيب البداية ثم النهاية."),
+            "outside_network": (QMessageBox.Warning, "النطاق خارج شبكة الواجهة المحددة."),
+            "overlap_excluded": (QMessageBox.Warning,
+                                 "النطاق يتداخل جزئياً مع نطاق DHCP مستثنى بالفعل."),
+            "binding_in_range": (QMessageBox.Warning,
+                                 "يوجد ربط DHCP ثابت داخل النطاق المطلوب استثناؤه."),
+            "not_confirmed": (QMessageBox.Critical,
+                              "نُفذ الأمر لكن النطاق لم يظهر عند إعادة قراءة الإعداد."),
+            "router_error": (QMessageBox.Critical, result.error or "تعذر تعديل مجمّع DHCP."),
+        }
+        icon, message = messages.get(result.code, (QMessageBox.Warning,
+            "تم الاستثناء، لكن تعذر فصل بعض الجلسات المطابقة."))
+        if result.data and result.code in {"excluded", "excluded_partial"}:
+            affected, cut = len(result.data.get("affected", [])), len(result.data.get("cut", []))
+            message += (("\n\nDHCP leases in range: %d. Sessions disconnected: %d." if self.lang == "en"
+                         else "\n\nإيجارات DHCP داخل النطاق: %d. جلسات مفصولة: %d.") %
+                        (affected, cut))
+            if not result.data.get("saved", True):
+                message += "\n" + tr("لم يُحفظ إعداد بدء التشغيل تلقائياً.")
+        box = QMessageBox(self)
+        box.setWindowTitle("استثناء نطاق DHCP")
+        box.setIcon(icon)
+        box.setText(message)
+        box.exec()
+
+    def _bind_vlan_dhcp(self):
+        title = "ربط IP ثابت بـ MAC"
+        if not self._dhcp_network_ready(title):
+            return
+        mac = self._selected_vlan_mac()
+        if not mac:
+            QMessageBox.information(self, title, "اختر جهازاً من جدول الشبكة أولاً.")
+            return
+        dialog = DhcpBindingDialog(mac, self.c.vlan_state, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        ip = dialog.ip.text().strip()
+        pretty_mac = legacy.mac_pretty(legacy.normalize_mac(mac))
+        if self.lang == "en":
+            question = "Bind %s to %s in DHCP on %s." % (
+                pretty_mac, ip or "—", self.c.vlan_state.get("iface", ""))
+        else:
+            question = "سيُربط %s بالعنوان %s في DHCP على %s." % (
+                pretty_mac, ip or "—", self.c.vlan_state.get("iface", ""))
+        choice = QMessageBox.question(
+            self, title, question,
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if choice != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.bind_vlan_dhcp(
+            mac, ip, dialog.description.text(), dialog.disconnect.isChecked()),
+            self._show_bind_vlan_dhcp_result)
+
+    def _show_bind_vlan_dhcp_result(self, result):
+        messages = {
+            "bound": (QMessageBox.Information, "تم ربط IP بـ MAC والتحقق من إعداد DHCP."),
+            "unchanged": (QMessageBox.Information, "هذا الربط موجود بالفعل."),
+            "no_dhcp": (QMessageBox.Warning, "الشبكة المحددة لا تملك DHCP محلياً."),
+            "bad_mac": (QMessageBox.Warning, "عنوان MAC المحدد غير صالح."),
+            "outside_network": (QMessageBox.Warning, "عنوان IP خارج شبكة الواجهة المحددة."),
+            "address_excluded": (QMessageBox.Warning,
+                                 "لا يمكن ربط عنوان مستثنى من مجمّع DHCP."),
+            "ip_in_use": (QMessageBox.Warning,
+                          "العنوان مستخدم حالياً أو ظاهر لجهاز MAC آخر."),
+            "mac_bound": (QMessageBox.Warning, "هذا MAC مربوط بالفعل بعنوان DHCP آخر."),
+            "not_confirmed": (QMessageBox.Critical,
+                              "نُفذ الأمر لكن الربط لم يظهر عند إعادة قراءة الإعداد."),
+            "router_error": (QMessageBox.Critical, result.error or "تعذر إنشاء ربط DHCP."),
+        }
+        icon, message = messages.get(result.code, (QMessageBox.Warning,
+            "تم الربط، لكن تعذر فصل الجلسة المختارة لتجديد العنوان."))
+        if result.data and result.code in {"bound", "bound_partial"}:
+            if result.data.get("release"):
+                message += (("\nReleased previous lease: %s." if self.lang == "en"
+                             else "\nحُرر الإيجار السابق: %s.") % result.data["release"])
+            if not result.data.get("saved", True):
+                message += "\n" + tr("لم يُحفظ إعداد بدء التشغيل تلقائياً.")
+        box = QMessageBox(self)
+        box.setWindowTitle("ربط IP ثابت بـ MAC")
+        box.setIcon(icon)
+        box.setText(message)
+        box.exec()
 
     def _show_vlan_overlap_result(self, result):
         if not result.ok:
@@ -2162,13 +2917,21 @@ class MainWindow(QMainWindow):
         self.workers.append(worker)
         worker.done.connect(lambda result: self._finished(worker, result, on_success))
         worker.failed.connect(lambda message: self._failed(worker, message))
+        worker.finished.connect(lambda: self._retire_worker(worker))
         worker.start()
 
-    def _finished(self, worker, result, on_success=None):
+    def _retire_worker(self, worker):
         if worker in self.workers:
+            self.workers.remove(worker)
+
+    def _finished(self, worker, result, on_success=None):
+        if worker.isFinished() and worker in self.workers:
             self.workers.remove(worker)
         self._render()
         self._set_busy(False)
+        if self.c._firebase_dirty and not self.c.firebase_error:
+            self._next_cloud_poll = 0
+        QTimer.singleShot(0, self._auto_firebase_sync)
         if isinstance(result, legacy.ActionResult) and not result.ok:
             self._set_operation_status("تعذرت العملية", "error")
         else:
@@ -2177,13 +2940,14 @@ class MainWindow(QMainWindow):
             on_success(result)
 
     def _failed(self, worker, message):
-        if worker in self.workers:
+        if worker.isFinished() and worker in self.workers:
             self.workers.remove(worker)
         self._set_busy(False)
         self._set_operation_status("تعذرت العملية", "error")
         QMessageBox.critical(self, "تعذر إتمام العملية", message)
 
     def _render(self):
+        self._render_firebase_status()
         connected = self.c.router.connected
         host = self.c.router.hostname if connected else tr("لا يوجد اتصال")
         self.router_label.setText((tr("● متصل بـ ") if connected else "● ") + host)
@@ -2201,13 +2965,14 @@ class MainWindow(QMainWindow):
         self._render_vlans()
         self._fill("management", self.c.management_rows())
         self._render_wan()
+        self._render_nat()
         if hasattr(self, "log_text"):
             self.log_text.setPlainText(self._masked_log())
         counts = {}
         for account in self.c.users.values():
             if account.get("group"):
                 counts[account["group"]] = counts.get(account["group"], 0) + 1
-        self._fill("groups", [[group, acl or "—", counts.get(group, 0)] for group, acl in sorted(self.c.groups.items())])
+        self._render_permission_groups()
         for metric, value in zip(self.metrics, (len(self._device_rows()), len(self._portal_rows()), len(self.c.online), len(self.c.groups))):
             metric.setText(str(value))
 
@@ -2262,21 +3027,50 @@ class MainWindow(QMainWindow):
         state = self.c.vlan_state or {}
         self._fill("vlans", self._vlan_rows(state))
         if not state:
-            context.setText("حدّث الشبكات لعرض الأجهزة المتصلة بها.")
+            context.setText(tr("حدّث الشبكات لعرض الأجهزة المتصلة بها."))
+            for button in (getattr(self, "exclude_dhcp_range", None),
+                           getattr(self, "bind_vlan_dhcp", None)):
+                if button is not None:
+                    button.setEnabled(True)
             return
-        ports = "، ".join(state.get("ports") or []) or "لا يوجد منفذ حامل على الراوتر"
+        english = self.lang == "en"
+        ports = (", " if english else "، ").join(state.get("ports") or [])
+        if not ports:
+            ports = "No router port carries this VLAN" if english else "لا يوجد منفذ حامل على الراوتر"
         if not state.get("iface"):
-            context.setText("VLAN %s — %s. لا توجد واجهة عنوان أو مجمّع DHCP لهذه الشبكة." %
-                            (state.get("vid", ""), ports))
+            if english:
+                context.setText("VLAN %s — %s. This network has no routed interface or DHCP pool." %
+                                (state.get("vid", ""), ports))
+            else:
+                context.setText("VLAN %s — %s. لا توجد واجهة عنوان أو مجمّع DHCP لهذه الشبكة." %
+                                (state.get("vid", ""), ports))
+            for button in (getattr(self, "exclude_dhcp_range", None),
+                           getattr(self, "bind_vlan_dhcp", None)):
+                if button is not None:
+                    button.setEnabled(True)
             return
         pool = state.get("pool") or {}
-        pool_text = "لا توجد بيانات مجمّع"
+        pool_text = "No pool data" if english else "لا توجد بيانات مجمّع"
         if pool:
             usable = (pool.get("total") or 0) - (pool.get("disabled") or 0)
-            pool_text = "المجمّع: مستخدم %s من %s متاح" % (pool.get("used", 0), usable)
+            pool_text = ("Pool: %s used of %s available" if english
+                         else "المجمّع: مستخدم %s من %s متاح") % (pool.get("used", 0), usable)
         description = (" — %s" % state["desc"]) if state.get("desc") else ""
-        summary = "VLAN %s%s · %s · %s" % (
-            state.get("vid", ""), description, state["iface"], pool_text + " · " + ports)
+        dhcp_text = ("DHCP enabled" if english else "DHCP متاح") if state.get("dhcp") \
+            else ("DHCP not enabled" if english else "DHCP غير مفعّل")
+        excluded = state.get("excluded") or []
+        if excluded:
+            dhcp_text += (" · Excluded: " if english else " · مستثنى: ") + (", " if english else "، ").join(
+                "%s–%s" % (item["start"], item["end"]) for item in excluded)
+        for button in (getattr(self, "exclude_dhcp_range", None),
+                       getattr(self, "bind_vlan_dhcp", None)):
+            if button is not None:
+                # Keep the action reachable so its handler can explain whether the
+                # selected network has a DHCP pool, rather than leaving a silent
+                # disabled control.  _dhcp_network_ready still blocks every write.
+                button.setEnabled(True)
+        summary = "VLAN %s%s · %s · %s · %s" % (
+            state.get("vid", ""), description, state["iface"], pool_text + " · " + ports, dhcp_text)
         overlap = self.c.vlan_overlap or {}
         duplicates = overlap.get("dups") or {}
         crossed = sum(1 for record in state.get("rows", [])
@@ -2285,10 +3079,13 @@ class MainWindow(QMainWindow):
         tight = overlap.get("tight") or []
         notes = []
         if crossed:
-            notes.append("تنبيه: %s جهاز يحمل عنواناً في شبكة أخرى." % crossed)
+            notes.append(("Warning: %s device(s) hold an address in another network." if english
+                          else "تنبيه: %s جهاز يحمل عنواناً في شبكة أخرى.") % crossed)
         if tight:
-            notes.append("المجمّعات القريبة من الامتلاء: " + "، ".join(
-                "VLAN %s (%s/%s متاح)" % (entry["vid"], entry["idle"], entry["usable"])
+            notes.append(("Pools close to full: " if english else "المجمّعات القريبة من الامتلاء: ")
+                         + (", " if english else "، ").join(
+                ("VLAN %s (%s/%s available)" if english else "VLAN %s (%s/%s متاح)") %
+                (entry["vid"], entry["idle"], entry["usable"])
                 for entry in tight))
         context.setText(summary + ("\n" + "\n".join(notes) if notes else ""))
 
@@ -2358,6 +3155,272 @@ class MainWindow(QMainWindow):
                 item = table.item(row_index, column)
                 if item is not None:
                     item.setForeground(color)
+
+    def _render_nat(self):
+        self._fill("nat", [[rule.get("interface", ""), rule.get("wan_ip", "") or "—",
+                            rule.get("protocol", "").upper(), str(rule.get("external_port", "")),
+                            rule.get("inside_ip", ""), str(rule.get("inside_port", ""))]
+                           for rule in self.c.nat_rules])
+
+    @staticmethod
+    def _application_category(signature):
+        categories = {
+            "WhatsAPP": "Messaging", "WhatsAPP_FileTransfer": "Messaging",
+            "WhatsAPP_VoIP": "Messaging", "WhatsAPP_Web": "Messaging",
+            "Facebook": "Social media", "Instagram": "Social media", "Threads": "Social media",
+            "TikTok": "Video & social", "Youtube": "Video", "YouTube_Music": "Video",
+            "YouTube_Kids": "Video", "OpenVPN": "VPN / tunnel", "WireGuardVPN": "VPN / tunnel",
+            "NordVPN": "VPN / tunnel", "ExpressVPN": "VPN / tunnel", "ProtonVPN": "VPN / tunnel",
+            "Shadowsocks": "VPN / tunnel",
+        }
+        category = categories.get(signature, "Application signature")
+        if ACTIVE_LANGUAGE != "en":
+            return {
+                "Messaging": "مراسلة", "Social media": "تواصل اجتماعي",
+                "Video & social": "فيديو وتواصل", "Video": "فيديو",
+                "VPN / tunnel": "VPN / نفق", "Application signature": "توقيع تطبيق",
+            }.get(category, category)
+        return category
+
+    def _render_permission_groups(self, *_ignored):
+        group_picker = getattr(self, "application_group", None)
+        interface_picker = getattr(self, "application_interface", None)
+        table = getattr(self, "application_table", None)
+        if group_picker is None or interface_picker is None or table is None:
+            return
+        previous_group, previous_interface = group_picker.currentData(), interface_picker.currentData()
+        group_picker.blockSignals(True)
+        group_picker.clear()
+        for name, acl in sorted(self.c.groups.items()):
+            group_picker.addItem("%s  ·  ACL %s" % (name, acl or "—"), name)
+        index = group_picker.findData(previous_group)
+        if index >= 0:
+            group_picker.setCurrentIndex(index)
+        group_picker.blockSignals(False)
+
+        group = group_picker.currentData() or ""
+        group_key = re.sub(r"[^a-z0-9]", "", group.lower().replace("grp", "", 1))
+        group_keys = {group_key}
+        if group_key.endswith("s"):
+            group_keys.add(group_key[:-1])
+        elif group_key:
+            group_keys.add(group_key + "s")
+        interface_details = self.c.application_config.get("interfaces") or {}
+        # VRP does not bind an AAA user-group to a Vlanif in its application-policy
+        # syntax.  The gateway descriptions are only a safe display hint; actions
+        # still target the selected interface policy explicitly.
+        candidates = []
+        for interface, details in sorted(interface_details.items()):
+            description_key = re.sub(r"[^a-z0-9]", "", details.get("description", "").lower())
+            if any(key and key in description_key for key in group_keys):
+                candidates.append(interface)
+        access_interfaces = [(interface, details) for interface, details in sorted(interface_details.items())
+                             if details.get("nac") or details.get("inbound_policy")]
+        interface_picker.blockSignals(True)
+        interface_picker.clear()
+        for interface, details in access_interfaces:
+            policy = details.get("inbound_policy", "")
+            description = details.get("description", "")
+            policy_text = policy or ("لا توجد سياسة تطبيقات" if ACTIVE_LANGUAGE != "en" else "no application policy")
+            label = "%s%s  →  %s" % (interface, (" · " + description) if description else "", policy_text)
+            interface_picker.addItem(label, interface)
+        group_changed = group != getattr(self, "_last_application_group", None)
+        preferred_interface = candidates[0] if group_changed and candidates else previous_interface
+        index = interface_picker.findData(preferred_interface)
+        if index >= 0:
+            interface_picker.setCurrentIndex(index)
+        interface_picker.blockSignals(False)
+
+        self._last_application_group = group
+        acl_no = self.c.groups.get(group, "")
+        interface = interface_picker.currentData() or ""
+        policy = (interface_details.get(interface) or {}).get("inbound_policy", "")
+        rows = legacy.application_policy_rows(self.c.application_config, policy, acl_no) if policy else []
+        english = ACTIVE_LANGUAGE == "en"
+        if not group:
+            context = ("Refresh while connected to read permission groups and policies."
+                       if english else "حدّث أثناء الاتصال لقراءة المجموعات والسياسات.")
+        elif not policy:
+            inferred = " (matched from its gateway description)" if interface in candidates and english else \
+                       (" (مستنتجة من وصف البوابة)" if interface in candidates else "")
+            context = (("%s uses ACL %s. Its selected network is %s%s, and it has no inbound application policy. "
+                        "No application is currently shown as blocked for this group.") %
+                       (group, acl_no or "—", interface or "—", inferred)
+                       if english else
+                       ("المجموعة %s مرتبطة بـ ACL %s. شبكتها المحددة هي %s%s ولا توجد عليها سياسة تطبيقات واردة؛ "
+                        "لذلك لا يعرض التطبيق أي حظر تطبيقات لهذه المجموعة.") %
+                       (group, acl_no or "—", interface or "—", inferred))
+        else:
+            default_deny = bool((self.c.application_config.get("acls") or {}).get(str(acl_no), {}).get("default_deny"))
+            acl_state = ("default deny" if default_deny else "no detected default deny") if english else \
+                        ("منع افتراضي" if default_deny else "لا يوجد منع افتراضي ظاهر")
+            same_network = interface in candidates
+            scope = ("The selected interface is separate from this group; " if not same_network and english else
+                     ("الواجهة المحددة منفصلة عن هذه المجموعة؛ " if not same_network else ""))
+            context = (("Group %s → ACL %s (%s). %sInterface %s applies policy %s inbound. "
+                        "That policy affects every matching user on this interface, not this group alone.") %
+                       (group, acl_no or "—", acl_state, scope, interface, policy) if english else
+                       ("المجموعة %s ← ACL %s (%s). %sالواجهة %s تطبق السياسة %s على الاتجاه الوارد. "
+                        "تؤثر السياسة في كل مستخدم يطابقها على الواجهة، لا في هذه المجموعة وحدها.") %
+                       (group, acl_no or "—", acl_state, scope, interface, policy))
+        self.application_context.setText(context)
+        can_change_policy = bool(policy and (not candidates or interface in candidates))
+        if hasattr(self, "block_application"):
+            self.block_application.setEnabled(can_change_policy)
+        if hasattr(self, "allow_application"):
+            self.allow_application.setEnabled(can_change_policy)
+
+        query = self.application_search.text() if hasattr(self, "application_search") else ""
+        table.setRowCount(len(rows))
+        for row_index, item in enumerate(rows):
+            state = item["state"]
+            if state == "blocked":
+                label = "Blocked" if english else "محظور"
+                rules = item["rules"]
+                source = ", ".join("%s / %s" % (rule["classifier"], rule["precedence"])
+                                   for rule in rules)
+                color = QColor("#B42318")
+            elif state == "acl-dependent":
+                label = "ACL-dependent" if english else "مرتبط بـ ACL"
+                source = (("ACL %s has a default deny; app policy does not grant access." % (acl_no or "—"))
+                          if english else ("ACL %s لديه منع افتراضي؛ سياسة التطبيقات لا تمنح وصولاً." % (acl_no or "—")))
+                color = QColor("#B54708")
+            else:
+                label = "Not blocked by this policy" if english else "غير محظور بهذه السياسة"
+                source = ("No deny classifier in %s" % policy if english else "لا يوجد مصنف منع في %s" % policy)
+                color = QColor("#067647")
+            values = [item["application"], self._application_category(item["application"]), label, source]
+            for column, value in enumerate(values):
+                cell = QTableWidgetItem(str(value))
+                if column == 2:
+                    cell.setForeground(color)
+                table.setItem(row_index, column, cell)
+        self._filter(table, query)
+        self.application_explanation.setText(
+            ("Important: “not blocked by this policy” does not mean the application is allowed. "
+             "A default-deny ACL may still block its IP/CDN traffic. WhatsApp media needs its file-transfer "
+             "signature and reachable media destinations; Facebook and Instagram share Meta infrastructure, "
+             "so an IP-only allowlist cannot reliably separate them. Block and allow actions show their scope, "
+             "reread the router, then save only when automatic saving is enabled.") if english else
+            ("مهم: «غير محظور بهذه السياسة» لا يعني أن التطبيق مسموح. قد يمنع ACL ذو المنع الافتراضي "
+             "عناوين التطبيق أو CDN. يحتاج وسائط واتساب إلى توقيع نقل الملفات وإلى وجهات الوسائط المتاحة؛ "
+             "وتشترك فيسبوك وإنستغرام في بنية Meta، لذلك لا تفصل بينهما قائمة سماح تعتمد على IP فقط بشكل موثوق. "
+             "تعرض أزرار الحظر والسماح نطاق الأثر، ثم تعيد قراءة الراوتر، وتحفظ فقط عند تفعيل الحفظ التلقائي."))
+
+    def _describe_selected_application(self):
+        table = getattr(self, "application_table", None)
+        if table is None or not table.selectionModel().hasSelection():
+            return
+        row = table.selectionModel().selectedRows()[0].row()
+        app = table.item(row, 0).text() if table.item(row, 0) else ""
+        state = table.item(row, 2).text() if table.item(row, 2) else ""
+        source = table.item(row, 3).text() if table.item(row, 3) else ""
+        english = ACTIVE_LANGUAGE == "en"
+        message = (("%s\n\nCurrent state: %s\nSource: %s\n\nBlock creates a dedicated classifier and verifies it. "
+                    "Allow removes the classifier association only; if that classifier has several signatures, "
+                    "the application asks for an explicit bundle confirmation.") % (app, state, source) if english else
+                   ("%s\n\nالحالة الحالية: %s\nالمصدر: %s\n\nالحظر ينشئ مصنفاً مستقلاً ويتحقق منه. "
+                    "السماح يفك ارتباط المصنف فقط؛ وإذا احتوى المصنف عدة تواقيع سيطلب التطبيق تأكيداً صريحاً لنطاق الأثر.") % (app, state, source))
+        QMessageBox.information(self, "تفاصيل التطبيق", message)
+
+    def _selected_application_policy_item(self):
+        table = getattr(self, "application_table", None)
+        if table is None or not table.selectionModel().hasSelection():
+            return "", "", ""
+        row = table.selectionModel().selectedRows()[0].row()
+        application = table.item(row, 0).text() if table.item(row, 0) else ""
+        state = table.item(row, 2).text() if table.item(row, 2) else ""
+        interface = self.application_interface.currentData() if hasattr(self, "application_interface") else ""
+        policy = ((self.c.application_config.get("interfaces") or {}).get(interface, {})
+                  .get("inbound_policy", ""))
+        return application, policy, state
+
+    def _block_selected_application(self):
+        if not self.c.router.connected:
+            QMessageBox.information(self, "حظر تطبيق", "اتصل بالراوتر أولاً.")
+            return
+        application, policy, state = self._selected_application_policy_item()
+        if not application or not policy:
+            QMessageBox.information(self, "حظر تطبيق", "اختر تطبيقاً وواجهة لديها سياسة واردة أولاً.")
+            return
+        if state in {"محظور", "Blocked"}:
+            QMessageBox.information(self, "حظر تطبيق", "التطبيق محظور بهذه السياسة بالفعل.")
+            return
+        interface = self.application_interface.currentData()
+        auto_save = bool(self.c.settings.get("auto_save_config", True))
+        text = (
+            "سيُنشئ التطبيق مصنفاً مستقلاً للتوقيع %s، ثم يربطه بالسلوك BLOCK "
+            "في سياسة %s على الواجهة %s. لن يغيّر ACL المجموعة.\n\n"
+            "سيعاد قراءة الراوتر للتحقق قبل الحفظ%s." %
+            (application, policy, interface, " التلقائي" if auto_save else "")
+        )
+        if QMessageBox.question(self, "تأكيد حظر التطبيق", text,
+                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.block_application(policy, application), self._show_block_application_result)
+
+    def _show_block_application_result(self, result):
+        messages = {
+            "application_blocked": (QMessageBox.Information, "تم حظر التطبيق والتحقق من السياسة."),
+            "already_blocked": (QMessageBox.Information, "التطبيق محظور بالفعل."),
+            "bad_application": (QMessageBox.Warning, "التوقيع المحدد غير صالح لهذا الراوتر."),
+            "missing_policy": (QMessageBox.Warning, "سياسة الواجهة لم تعد موجودة على الراوتر."),
+            "missing_deny_behavior": (QMessageBox.Warning, "لا توجد قاعدة سلوك deny يمكن ربطها بأمان."),
+            "classifier_conflict": (QMessageBox.Warning, "اسم المصنف المحجوز يتعارض مع مصنف مختلف."),
+            "not_confirmed": (QMessageBox.Critical, "نُفذت الأوامر لكن الحظر لم يثبت عند إعادة القراءة."),
+            "save_failed": (QMessageBox.Warning, "ثبت الحظر لكن تعذر حفظ إعداد بدء التشغيل."),
+            "router_error": (QMessageBox.Critical, result.error or "رفض الراوتر الأمر."),
+        }
+        icon, text = messages.get(result.code, (QMessageBox.Critical, "تعذر تغيير سياسة التطبيق."))
+        QMessageBox(icon, "حظر تطبيق", text, parent=self).exec()
+
+    def _allow_selected_application(self):
+        if not self.c.router.connected:
+            QMessageBox.information(self, "السماح لتطبيق", "اتصل بالراوتر أولاً.")
+            return
+        application, policy, _state = self._selected_application_policy_item()
+        if not application or not policy:
+            QMessageBox.information(self, "السماح لتطبيق", "اختر تطبيقاً وواجهة لديها سياسة واردة أولاً.")
+            return
+        self._run(lambda: self.c.allow_application(policy, application),
+                  lambda result: self._show_allow_application_result(result, policy, application, False))
+
+    def _show_allow_application_result(self, result, policy, application, confirmed_bundle=False):
+        if result.code == "shared_classifier" and not confirmed_bundle:
+            affected = result.data.get("affected", []) if result.data else []
+            text = ("التوقيع %s جزء من مصنف واحد. السماح له سيفك حظر التطبيقات التالية معاً:\n\n%s\n\n"
+                    "لن يغيّر ذلك ACL المجموعة. هل تريد المتابعة؟" %
+                    (application, "\n".join("• " + item for item in affected)))
+            if QMessageBox.question(self, "تأكيد السماح لمجموعة تطبيقات", text,
+                                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+                self._run(lambda: self.c.allow_application(policy, application, True),
+                          lambda retry: self._show_allow_application_result(
+                              retry, policy, application, True))
+            return
+        messages = {
+            "application_allowed": (QMessageBox.Information, "تم فك الحظر والتحقق من السياسة."),
+            "not_blocked": (QMessageBox.Information, "التطبيق غير محظور بهذه السياسة."),
+            "not_confirmed": (QMessageBox.Critical, "نُفذت الأوامر لكن فك الحظر لم يثبت عند إعادة القراءة."),
+            "save_failed": (QMessageBox.Warning, "ثبت فك الحظر لكن تعذر حفظ إعداد بدء التشغيل."),
+            "router_error": (QMessageBox.Critical, result.error or "رفض الراوتر الأمر."),
+        }
+        icon, text = messages.get(result.code, (QMessageBox.Critical, "تعذر تغيير سياسة التطبيق."))
+        QMessageBox(icon, "السماح لتطبيق", text, parent=self).exec()
+
+    def _copy_application_review(self):
+        group = self.application_group.currentData() if hasattr(self, "application_group") else ""
+        interface = self.application_interface.currentData() if hasattr(self, "application_interface") else ""
+        lines = [self.application_context.text(), ""]
+        table = getattr(self, "application_table", None)
+        if table is not None:
+            for row in range(table.rowCount()):
+                if table.isRowHidden(row):
+                    continue
+                lines.append(" | ".join(table.item(row, col).text() if table.item(row, col) else ""
+                                        for col in range(table.columnCount())))
+        QApplication.clipboard().setText("Group: %s\nInterface: %s\n%s" %
+                                         (group or "—", interface or "—", "\n".join(lines)))
+        self._set_operation_status("تم نسخ تقرير السياسة" if ACTIVE_LANGUAGE != "en" else "Policy report copied", "ok")
 
     def _vlan_rows(self, state):
         kinds = {"dhcp": "DHCP", "bind": tr("حجز ثابت"), "static": tr("عنوان ثابت"), "none": tr("بلا عنوان")}
@@ -2569,6 +3632,138 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "إزالة جهاز إدارة", "سيُزال ACL وARP وربط DHCP للعنوان %s." % ip, QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes: return
         self._run(lambda: self.c.remove_management(entry), self._show_action("إزالة جهاز إدارة"))
 
+    def _refresh_nat(self):
+        if not self.c.router.connected:
+            QMessageBox.information(self, "تحويل المنافذ NAT", "اتصل بالراوتر أولاً.")
+            return
+        self._run(self.c.refresh_nat)
+
+    def _add_static_nat(self):
+        if not self.c.router.connected:
+            QMessageBox.information(self, "تحويل المنافذ NAT", "اتصل بالراوتر أولاً.")
+            return
+        # نعيد قراءة القواعد قبل إظهار الحوار؛ لا نعتمد على جدول قديم عند
+        # اختيار المنفذ لأن التعارض قد يقطع خدمة قائمة.
+        self._run(self.c.refresh_nat, self._show_add_static_nat_dialog)
+
+    def _show_add_static_nat_dialog(self, _rules):
+        if not self.c.nat_interfaces:
+            QMessageBox.warning(self, "تحويل المنافذ NAT", "اختر واجهة الإنترنت أولاً.")
+            return
+        dialog = AddStaticNatDialog(self.c.nat_interfaces, self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        interface = dialog.interface.currentData()
+        external_port, inside_ip, inside_port = (dialog.external_port.text().strip(),
+                                                 dialog.inside_ip.text().strip(),
+                                                 dialog.inside_port.text().strip())
+        if not interface:
+            QMessageBox.warning(self, "تحويل المنافذ NAT", "اختر واجهة الإنترنت أولاً.")
+            return
+        if not legacy.valid_port(external_port) or not legacy.valid_port(inside_port):
+            QMessageBox.warning(self, "تحويل المنافذ NAT", "رقم المنفذ يجب أن يكون بين 1 و65535.")
+            return
+        if not legacy.valid_ip(inside_ip):
+            QMessageBox.warning(self, "تحويل المنافذ NAT", "عنوان الجهاز الداخلي غير صالح.")
+            return
+        detail = ("سيُضاف التحويل التالي ثم يعاد قراءته للتحقق:\n\n"
+                  "TCP %s:%s → %s:%s" % (interface, external_port, inside_ip, inside_port))
+        if QMessageBox.question(self, "أضف قاعدة تحويل المنفذ", detail,
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.add_static_nat(interface, external_port, inside_ip, inside_port),
+                  self._show_static_nat_result)
+
+    def _selected_nat_rule(self):
+        table = self.tables.get("nat")
+        if table is None or not table.selectionModel().hasSelection():
+            return None
+        row = table.selectionModel().selectedRows()[0].row()
+        return self.c.nat_rules[row] if 0 <= row < len(self.c.nat_rules) else None
+
+    def _edit_static_nat(self):
+        if not self.c.router.connected:
+            QMessageBox.information(self, "تحويل المنافذ NAT", "اتصل بالراوتر أولاً.")
+            return
+        original = self._selected_nat_rule()
+        if not original:
+            QMessageBox.information(self, "تعديل تحويل المنفذ", "اختر تحويلاً من الجدول أولاً.")
+            return
+        dialog = AddStaticNatDialog(self.c.nat_interfaces, self, original)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        interface = dialog.interface.currentData()
+        external_port, inside_ip, inside_port = (dialog.external_port.text().strip(),
+                                                 dialog.inside_ip.text().strip(),
+                                                 dialog.inside_port.text().strip())
+        if not interface:
+            QMessageBox.warning(self, "تعديل تحويل المنفذ", "اختر واجهة الإنترنت أولاً.")
+            return
+        if not legacy.valid_port(external_port) or not legacy.valid_port(inside_port):
+            QMessageBox.warning(self, "تعديل تحويل المنفذ", "رقم المنفذ يجب أن يكون بين 1 و65535.")
+            return
+        if not legacy.valid_ip(inside_ip):
+            QMessageBox.warning(self, "تعديل تحويل المنفذ", "عنوان الجهاز الداخلي غير صالح.")
+            return
+        detail = ("سيُستبدل التحويل التالي بعد التحقق، ويعاد التحويل القديم تلقائياً إذا فشل البديل:\n\n"
+                  "TCP %s:%s → %s:%s" % (interface, external_port, inside_ip, inside_port))
+        if QMessageBox.question(self, "تعديل تحويل المنفذ", detail,
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.edit_static_nat(
+            original, interface, external_port, inside_ip, inside_port), self._show_static_nat_result)
+
+    def _delete_static_nat(self):
+        if not self.c.router.connected:
+            QMessageBox.information(self, "تحويل المنافذ NAT", "اتصل بالراوتر أولاً.")
+            return
+        rule = self._selected_nat_rule()
+        if not rule:
+            QMessageBox.information(self, "حذف تحويل المنفذ", "اختر تحويلاً من الجدول أولاً.")
+            return
+        detail = ("سيُحذف هذا التحويل ثم يعاد قراءة الراوتر للتأكد:\n\n"
+                  "TCP %s:%s → %s:%s" % (rule["interface"], rule["external_port"],
+                                          rule["inside_ip"], rule["inside_port"]))
+        if QMessageBox.question(self, "حذف تحويل المنفذ", detail,
+                                QMessageBox.Yes | QMessageBox.No,
+                                QMessageBox.No) != QMessageBox.Yes:
+            return
+        self._run(lambda: self.c.delete_static_nat(rule), self._show_static_nat_result)
+
+    def _show_static_nat_result(self, result):
+        title = "تحويل المنافذ NAT"
+        messages = {
+            "nat_added": (QMessageBox.Information, "أُضيف التحويل وتحقق التطبيق منه وحُفظ في الراوتر."),
+            "nat_edited": (QMessageBox.Information, "عُدّل التحويل وتحقق التطبيق منه وحُفظ في الراوتر."),
+            "nat_deleted": (QMessageBox.Information, "حُذف التحويل وتحقق التطبيق من اختفائه وحُفظ في الراوتر."),
+            "unchanged": (QMessageBox.Information, "لم تتغير بيانات التحويل."),
+            "missing_interface": (QMessageBox.Warning, "اختر واجهة الإنترنت أولاً."),
+            "missing_selection": (QMessageBox.Warning, "لم تعد القاعدة المحددة موجودة على الراوتر. حدّث التحويلات ثم حاول مجدداً."),
+            "bad_port": (QMessageBox.Warning, "رقم المنفذ يجب أن يكون بين 1 و65535."),
+            "bad_ip": (QMessageBox.Warning, "عنوان الجهاز الداخلي غير صالح."),
+            "inside_on_wan": (QMessageBox.Warning, "لا يمكن أن يكون الجهاز الداخلي في شبكة WAN نفسها."),
+            "duplicate": (QMessageBox.Information, "هذا المنفذ محجوز بالفعل للتحويل نفسه."),
+            "no_route": (QMessageBox.Warning, "لا يوجد مسار معروف إلى الجهاز الداخلي."),
+            "not_confirmed": (QMessageBox.Critical, "نُفذت القاعدة لكن لم تظهر عند إعادة القراءة."),
+            "edit_remove_not_confirmed": (QMessageBox.Critical, "لم يتأكد التطبيق من حذف التحويل القديم؛ لم تُنشأ القاعدة البديلة."),
+            "edit_rolled_back": (QMessageBox.Warning, "تعذر إنشاء التحويل البديل؛ أعاد التطبيق التحويل القديم."),
+            "edit_rollback_failed": (QMessageBox.Critical, "تعذر إنشاء التحويل البديل وتعذر استرجاع التحويل القديم. راجع سجل الأوامر فوراً."),
+            "save_failed": (QMessageBox.Warning, "أُضيف التحويل وتحقق التطبيق منه، لكن تعذر حفظ إعداد بدء التشغيل."),
+        }
+        if result.code == "port_in_use":
+            rule = (result.data or {}).get("rule", {})
+            detail = "%s:%s" % (rule.get("inside_ip", "—"), rule.get("inside_port", "—"))
+            QMessageBox.warning(self, title, "المنفذ الخارجي مستخدم بالفعل لتحويل آخر: %s" % detail)
+            return
+        icon, message = messages.get(result.code, (QMessageBox.Critical, result.error or "تعذر إتمام العملية."))
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setIcon(icon)
+        box.setText(message)
+        box.exec()
+
     def _check_wan(self, live):
         if not self.c.router.connected: QMessageBox.information(self, "خطوط الإنترنت", "اتصل بالراوتر أولاً."); return
         self._run(lambda: self.c.check_wan(live))
@@ -2594,12 +3789,36 @@ class MainWindow(QMainWindow):
         else: self.wan_timer.stop()
 
     def _save_settings(self):
-        values = {"mac_shared_password": self.setting_mac_password.text() or self.c.settings.get("mac_shared_password", ""), "auto_save_config": self.setting_autosave.isChecked(), "firebase_api_key": self.setting_firebase_key.text().strip(), "firebase_project_id": self.setting_firebase_project.text().strip(), "firebase_email": self.setting_firebase_email.text().strip(), "firebase_password": self.setting_firebase_password.text() or self.c.settings.get("firebase_password", ""), "storage_mode": self.storage_mode.currentData()}
+        password = self.setting_mac_password.text()
+        confirmation = self.setting_mac_password_confirm.text()
+        if password or confirmation:
+            if password != confirmation:
+                QMessageBox.warning(self, "الإعدادات", "كلمتا السر غير متطابقتين.")
+                return
+        values = {"mac_shared_password": password or self.c.settings.get("mac_shared_password", ""), "auto_save_config": self.setting_autosave.isChecked(), "firebase_api_key": self.setting_firebase_key.text().strip(), "firebase_project_id": self.setting_firebase_project.text().strip(), "firebase_email": self.setting_firebase_email.text().strip(), "firebase_password": self.setting_firebase_password.text() or self.c.settings.get("firebase_password", ""), "storage_mode": self.storage_mode.currentData()}
         self._run(lambda: self.c.save_preferences(values), self._show_storage_settings)
+
+    def _set_setting_mac_password_visibility(self, visible):
+        mode = QLineEdit.Normal if visible else QLineEdit.Password
+        self.setting_mac_password.setEchoMode(mode)
+        self.setting_mac_password_confirm.setEchoMode(mode)
+
+    def _update_setting_mac_password_match(self):
+        password = self.setting_mac_password.text()
+        confirmation = self.setting_mac_password_confirm.text()
+        if not password and not confirmation:
+            self.setting_mac_password_status.setText("اكتب كلمة السر مرتين للتحقق.")
+            self.setting_mac_password_status.setStyleSheet("")
+        elif password == confirmation:
+            self.setting_mac_password_status.setText("كلمتا السر متطابقتان.")
+            self.setting_mac_password_status.setStyleSheet("color: #067647; font-weight: 700;")
+        else:
+            self.setting_mac_password_status.setText("كلمتا السر غير متطابقتين.")
+            self.setting_mac_password_status.setStyleSheet("color: #B42318; font-weight: 700;")
 
     def _storage_mode_hint(self):
         cloud = hasattr(self, "storage_mode") and self.storage_mode.currentData() == "firebase"
-        return ("Firebase أساسي: البيانات السحابية هي المصدر الافتراضي، وتبقى نسخة محلية للعمل دون اتصال."
+        return ("Firebase أساسي: مزامنة تلقائية بين الأجهزة مع حفظ محلي ونسخ للاسترجاع."
                 if cloud else "محلي فقط: لا اتصال بـ Firebase.")
 
     def _update_storage_mode_hint(self):
@@ -2617,29 +3836,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "الإعدادات", result.error or "تعذرت العملية: " + result.code)
             return
         self._update_storage_controls()
-        if result.code == "firebase_setup_required":
-            self._choose_initial_firebase_source()
-            return
+        self._next_cloud_poll = 0
+        QTimer.singleShot(0, self._auto_firebase_sync)
         QMessageBox.information(self, "الإعدادات", "اكتملت العملية.")
-
-    def _choose_initial_firebase_source(self):
-        dialog = QMessageBox(self)
-        dialog.setIcon(QMessageBox.Question)
-        dialog.setWindowTitle("اختيار بيانات Firebase أولاً")
-        dialog.setText("اختر المصدر الأول للبيانات. لن يُستبدل أي طرف قبل تأكيدك.")
-        download = dialog.addButton(tr("استخدم بيانات Firebase"), QMessageBox.AcceptRole)
-        upload = dialog.addButton(tr("ارفع البيانات المحلية"), QMessageBox.DestructiveRole)
-        cancel = dialog.addButton(tr("إلغاء"), QMessageBox.RejectRole)
-        dialog.exec()
-        if dialog.clickedButton() is download:
-            self._firebase_download()
-        elif dialog.clickedButton() is upload:
-            self._firebase_upload()
-        elif dialog.clickedButton() is cancel:
-            self.c.save_preferences({"storage_mode": "local"})
-            self.storage_mode.setCurrentIndex(0)
-            self._update_storage_mode_hint()
-            self._update_storage_controls()
 
     def _firebase_credential_status(self):
         project = self.c.settings.get("firebase_project_id", "")
@@ -2735,31 +3934,14 @@ class MainWindow(QMainWindow):
                             messages.get(result.code, result.error or "تعذرت العملية: " + result.code))
 
     def _firebase_download(self):
-        if QMessageBox.question(self, "تنزيل البيانات من Firebase",
-                                "سيُنشأ ملف نسخة احتياطية محلية ثم ستستبدل بيانات Firebase بيانات هذا الجهاز. هل تريد المتابعة؟",
-                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
-            return
-        self._run(self.c.firebase_download, self._show_firebase_transfer)
+        self._firebase_sync()
 
     def _firebase_upload(self):
-        if QMessageBox.question(self, "رفع البيانات المحلية إلى Firebase",
-                                "سيستبدل هذا الإجراء بيانات Firebase بالبيانات المحلية الحالية. هل تريد المتابعة؟",
-                                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
-            return
-        self._run(self.c.firebase_upload, self._show_firebase_transfer)
+        self._firebase_sync()
 
     def _firebase_sync(self):
-        self._firebase_download()
-
-    def _show_firebase_transfer(self, result):
-        if not result.ok:
-            QMessageBox.warning(self, "Firebase", result.error or "تعذرت العملية: " + result.code)
-            return
-        if result.code == "downloaded":
-            self._render()
-            QMessageBox.information(self, "Firebase", "تم تنزيل بيانات Firebase مع نسخة احتياطية محلية.")
-        else:
-            QMessageBox.information(self, "Firebase", "تم رفع البيانات المحلية إلى Firebase.")
+        self._next_cloud_poll = 0
+        self._auto_firebase_sync()
 
     def _copy_log(self): QApplication.clipboard().setText(self._masked_log())
     def _show_action(self, title):
@@ -3123,7 +4305,15 @@ class MainWindow(QMainWindow):
                 return
 
     def closeEvent(self, event):
+        self._closing = True
         self.wan_timer.stop()
+        self.firebase_timer.stop()
+        if any(worker.isRunning() for worker in self.workers):
+            # Preserve workers until their bounded requests finish. Unacknowledged
+            # changes already live on disk and will resume on the next launch.
+            event.ignore()
+            QTimer.singleShot(100, self.close)
+            return
         self.c.close()
         event.accept()
 

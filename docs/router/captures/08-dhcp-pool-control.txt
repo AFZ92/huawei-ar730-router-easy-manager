@@ -1,0 +1,28 @@
+# Sanitised AR730 capture — DHCP pool control
+#
+# Address values and the access-user ID below are documentation-only placeholders.
+# The response text, prompt, command view, and command sequence are copied from
+# the production AR730 session on 2026-09-23.
+
+[ROUTER-Vlanif20]dhcp server excluded-ip-address 192.0.2.100 192.0.2.150
+Warning: The address is in used or conflict state. Are you sure to continue excluding the address?[Y/N]:Y
+Info: The operation may take a few seconds. Please wait for a moment.done.
+[ROUTER-Vlanif20]
+
+[ROUTER]display ip pool interface Vlanif20 used
+ ...
+ Address Statistic
+ Total       : 510
+ Used        : 0
+ Idle        : 438
+ Expired     : 0
+ Conflict    : 0
+ Disabled    : 72
+ ...
+
+[ROUTER]system-view
+Enter system view, return user view with Ctrl+Z.
+[ROUTER]aaa
+[ROUTER-aaa]cut access-user user-id N
+Info: Total 1  user(s) being cut.
+[ROUTER-aaa]
