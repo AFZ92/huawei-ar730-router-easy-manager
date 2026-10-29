@@ -73,7 +73,7 @@ except ImportError:
 APP_NAME = "Huawei AR730 Router Easy Manager"
 # Release tags are vMAJOR.MINOR.PATCH. Keep this in sync with the tag used to
 # publish a release; the updater compares it with GitHub Releases on startup.
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.8"
 VENDOR = "AFZ Systems"
 DEFAULT_SSH_PORT = 22
 # مساحة اسم الراوتر داخل تسمية الحالة؛ ما زاد عنها يُختصر بدل أن يوسّع الشريط
